@@ -14,8 +14,9 @@ import {
   Chip,
   Box,
   Divider,
+  Button,
 } from '@mui/material'
-import { Delete, LocationOn, Event } from '@mui/icons-material'
+import { Delete, LocationOn, Event, Email } from '@mui/icons-material'
 import { CustomerCard as CustomerCardType } from '@/types'
 import { formatDate } from '@/lib/emailParser'
 
@@ -23,12 +24,14 @@ interface CustomerCardProps {
   customer: CustomerCardType
   onCheckTruck: (truckId: string) => void
   onDeleteTruck: (truckId: string) => void
+  onViewEmails?: (customerEmail: string) => void
 }
 
 export function CustomerCard({
   customer,
   onCheckTruck,
   onDeleteTruck,
+  onViewEmails,
 }: CustomerCardProps) {
   const formatEmailDate = (date: Date): string => {
     const now = new Date()
@@ -65,7 +68,19 @@ export function CustomerCard({
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardHeader
         title={
-          <Typography variant="h6" component="div" noWrap>
+          <Typography 
+            variant="h6" 
+            component="div" 
+            noWrap 
+            sx={{ 
+              cursor: onViewEmails ? 'pointer' : 'default',
+              '&:hover': onViewEmails ? {
+                color: 'primary.main',
+                textDecoration: 'underline'
+              } : {}
+            }}
+            onClick={() => onViewEmails?.(customer.customerEmail)}
+          >
             {customer.customer}
           </Typography>
         }
@@ -80,11 +95,29 @@ export function CustomerCard({
           </Box>
         }
         action={
-          <Chip
-            label={`${customer.trucks.length} trucks`}
-            color="primary"
-            size="small"
-          />
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+            <Chip
+              label={`${customer.trucks.length} trucks`}
+              color="primary"
+              size="small"
+            />
+            {onViewEmails && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<Email />}
+                onClick={() => onViewEmails(customer.customerEmail)}
+                sx={{ 
+                  textTransform: 'none',
+                  fontSize: '0.7rem',
+                  py: 0.25,
+                  px: 1
+                }}
+              >
+                View Emails
+              </Button>
+            )}
+          </Box>
         }
       />
 

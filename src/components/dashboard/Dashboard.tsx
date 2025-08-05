@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useMsal, useIsAuthenticated } from '@azure/msal-react'
 import {
   Box,
@@ -18,26 +18,32 @@ import {
   Card,
   CardContent,
 } from '@mui/material'
-import { Refresh, Logout, WifiTethering, WifiTetheringOff, ViewModule, ViewList, Email, Forward } from '@mui/icons-material'
+import { Refresh, Logout, ViewModule, ViewList, Email, Forward, SmartToy } from '@mui/icons-material'
 import { getGraphClient, getEmails } from '@/lib/graphClient'
-import { isForwardedEmail, extractOriginalSenderFromForwardedEmail, stripHtmlTags } from '@/lib/emailParser'
-import { EmailMessage, EmailSenderCard, EmailItem } from '@/types'
+import { isForwardedEmail, extractOriginalSenderFromForwardedEmail, stripHtmlTags, generateTruckId } from '@/lib/emailParser'
+import { parseEmailWithAI } from '@/lib/emailParser'
+import { EmailMessage, EmailSenderCard, EmailItem, CustomerCard, TruckAvailability, ParsedEmailData } from '@/types'
 import { EmailSenderCard as EmailSenderCardComponent } from './EmailSenderCard'
-import { EmailWebSocketClient } from '@/lib/websocket'
+import { CustomerCard as CustomerCardComponent } from './CustomerCard'
+import { EmailModal } from './EmailModal'
 
 export function Dashboard() {
   const { instance, accounts } = useMsal()
   const isAuthenticated = useIsAuthenticated()
   const [emailSenderCards, setEmailSenderCards] = useState<EmailSenderCard[]>([])
+  const [customerCards, setCustomerCards] = useState<CustomerCard[]>([])
   const [rawEmails, setRawEmails] = useState<EmailMessage[]>([])
   const [loading, setLoading] = useState(false)
+  const [aiProcessing, setAiProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [hasActiveAccount, setHasActiveAccount] = useState(false)
-  const [wsConnected, setWsConnected] = useState(false)
-  const [viewMode, setViewMode] = useState<'cards' | 'raw'>('cards')
+  const [viewMode, setViewMode] = useState<'customers' | 'senders' | 'raw'>('customers')
   
-  const wsClientRef = useRef<EmailWebSocketClient | null>(null)
+  // Modal state
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<{ name: string; email: string } | null>(null)
+  const [customerEmails, setCustomerEmails] = useState<EmailMessage[]>([])
 
   // Check for active account whenever authentication state changes
   useEffect(() => {
@@ -55,46 +61,111 @@ export function Dashboard() {
     checkActiveAccount()
   }, [isAuthenticated, accounts, instance])
 
-  // Initialize WebSocket connection
-  useEffect(() => {
-    if (isAuthenticated && hasActiveAccount) {
-      const wsClient = new EmailWebSocketClient('ws://localhost:8080')
-      wsClientRef.current = wsClient
+  // Process all emails with AI to create customer cards
+  const processAllEmailsWithAI = async (emails: EmailMessage[]) => {
+    setAiProcessing(true)
+    const customerMap = new Map<string, CustomerCard>()
 
-      // Set up WebSocket event listeners
-      wsClient.on('connection', (data: any) => {
-        setWsConnected(data.status === 'connected')
-        if (data.status === 'connected') {
-          console.log('WebSocket connected for real-time email updates')
-          wsClient.send({
-            type: 'START_EMAIL_MONITORING',
-            data: {}
-          })
-        }
-      })
-
-      wsClient.on('newEmail', (email: EmailMessage) => {
-        console.log('New email received via WebSocket:', email)
-        setRawEmails(prev => [email, ...prev]) // Add new email to the top
-        setLastRefresh(new Date())
+    try {
+      // Reduced batch size to prevent API overload
+      const batchSize = 3
+      let processedCount = 0
+      let successCount = 0
+      
+      for (let i = 0; i < emails.length; i += batchSize) {
+        const batch = emails.slice(i, i + batchSize)
         
-        // Update sender cards with new email
-        addEmailToSenderCards(email)
-      })
+        const promises = batch.map(async (email) => {
+          try {
+            const parsedData = await parseEmailWithAI(email)
+            if (parsedData && parsedData.trucks.length > 0) {
+              return { email, parsedData }
+            }
+          } catch (error) {
+            console.error(`Error parsing email ${email.id}:`, error)
+          }
+          return null
+        })
 
-      wsClient.on('emailUpdate', (data: any) => {
-        console.log('Email update received:', data)
-        // Handle email updates if needed
-      })
+        const results = await Promise.allSettled(promises)
+        
+        // Process results
+        results.forEach((result, index) => {
+          processedCount++
+          
+          if (result.status === 'fulfilled' && result.value) {
+            const { email, parsedData } = result.value
+            successCount++
+            const customerKey = parsedData.customerEmail.toLowerCase()
+            
+            const trucks: TruckAvailability[] = parsedData.trucks.map(truck => ({
+              id: generateTruckId(email, truck.city, truck.state, truck.date),
+              customer: parsedData.customer,
+              customerEmail: parsedData.customerEmail,
+              date: truck.date,
+              city: truck.city,
+              state: truck.state,
+              additionalInfo: truck.additionalInfo,
+              emailId: email.id,
+              emailSubject: email.subject,
+              emailDate: new Date(email.receivedDateTime),
+              isChecked: false
+            }))
 
-      // Connect to WebSocket
-      wsClient.connect()
+            if (customerMap.has(customerKey)) {
+              const existingCard = customerMap.get(customerKey)!
+              // Add new trucks, avoiding duplicates
+              const newTrucks = trucks.filter(truck => 
+                !existingCard.trucks.some(existingTruck => existingTruck.id === truck.id)
+              )
+              existingCard.trucks.push(...newTrucks)
+              
+              // Update last email date if newer
+              const emailDate = new Date(email.receivedDateTime)
+              if (emailDate > existingCard.lastEmailDate) {
+                existingCard.lastEmailDate = emailDate
+              }
+            } else {
+              customerMap.set(customerKey, {
+                customer: parsedData.customer,
+                customerEmail: parsedData.customerEmail,
+                trucks: trucks,
+                lastEmailDate: new Date(email.receivedDateTime)
+              })
+            }
+          }
+        })
 
-      return () => {
-        wsClient.disconnect()
+        // Add a longer delay between batches to respect API limits
+        if (i + batchSize < emails.length) {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
       }
+
+      // Convert map to array and sort
+      const customerCardsArray = Array.from(customerMap.values()).sort((a, b) => 
+        b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
+      )
+
+      setCustomerCards(customerCardsArray)
+      
+      const totalTrucks = customerCardsArray.reduce((sum, card) => sum + card.trucks.length, 0)
+      console.log(`AI Processing completed: ${customerCardsArray.length} customers, ${totalTrucks} trucks from ${successCount}/${processedCount} emails`)
+      
+      // Update success message
+      if (successCount > 0) {
+        setError(`✅ AI processed ${successCount}/${processedCount} emails successfully! Found ${totalTrucks} trucks from ${customerCardsArray.length} customers.`)
+      } else {
+        setError('⚠️ AI processing completed but no truck availability data was found in the emails.')
+      }
+      
+    } catch (error) {
+      console.error('Error processing emails with AI:', error)
+      setError('Failed to process emails with AI. Some emails may be too long or contain unsupported content.')
+    } finally {
+      setAiProcessing(false)
     }
-  }, [isAuthenticated, hasActiveAccount])
+  }
 
   // Convert raw emails to sender cards
   const convertEmailsToSenderCards = (emails: EmailMessage[]): EmailSenderCard[] => {
@@ -144,51 +215,6 @@ export function Dashboard() {
     )
   }
 
-  // Add a new email to existing sender cards
-  const addEmailToSenderCards = (email: EmailMessage) => {
-    const senderEmail = email.from.emailAddress.address
-    const senderName = email.from.emailAddress.name || email.from.emailAddress.address
-    
-    const isForwarded = isForwardedEmail(email.body.content)
-    const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(email.body.content) : undefined
-
-    const emailItem: EmailItem = {
-      id: email.id,
-      subject: email.subject,
-      bodyPreview: stripHtmlTags(email.bodyPreview),
-      receivedDateTime: email.receivedDateTime,
-      isChecked: false,
-      isForwarded,
-      originalSender: originalSender || undefined
-    }
-
-    setEmailSenderCards(prev => {
-      const updated = [...prev]
-      const existingSenderIndex = updated.findIndex(card => card.senderEmail === senderEmail)
-      
-      if (existingSenderIndex >= 0) {
-        // Add to existing sender
-        updated[existingSenderIndex].emails.unshift(emailItem) // Add to front
-        updated[existingSenderIndex].totalEmails++
-        updated[existingSenderIndex].lastEmailDate = new Date(email.receivedDateTime)
-      } else {
-        // Create new sender card
-        updated.unshift({
-          senderName,
-          senderEmail,
-          emails: [emailItem],
-          lastEmailDate: new Date(email.receivedDateTime),
-          totalEmails: 1
-        })
-      }
-
-      // Re-sort by last email date
-      return updated.sort((a, b) => 
-        b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
-      )
-    })
-  }
-
   const fetchAndProcessEmails = async () => {
     // Double-check authentication before proceeding
     const activeAccount = instance.getActiveAccount()
@@ -210,6 +236,9 @@ export function Dashboard() {
       // Convert emails to sender cards
       const senderCards = convertEmailsToSenderCards(emails)
       setEmailSenderCards(senderCards)
+
+      // Process emails with AI for customer cards
+      await processAllEmailsWithAI(emails)
 
       if (emails.length > 0) {
         const forwardedCount = emails.filter(email => isForwardedEmail(email.body.content)).length
@@ -243,9 +272,6 @@ export function Dashboard() {
   }, [isAuthenticated, hasActiveAccount])
 
   const handleLogout = () => {
-    if (wsClientRef.current) {
-      wsClientRef.current.disconnect()
-    }
     instance.logoutPopup()
   }
 
@@ -276,6 +302,47 @@ export function Dashboard() {
     )
   }
 
+  const handleCheckTruck = (truckId: string) => {
+    setCustomerCards(prevCards =>
+      prevCards.map(card => ({
+        ...card,
+        trucks: card.trucks.map(truck =>
+          truck.id === truckId ? { ...truck, isChecked: !truck.isChecked } : truck
+        ),
+      }))
+    )
+  }
+
+  const handleDeleteTruck = (truckId: string) => {
+    setCustomerCards(prevCards =>
+      prevCards.map(card => ({
+        ...card,
+        trucks: card.trucks.filter(truck => truck.id !== truckId),
+      })).filter(card => card.trucks.length > 0)
+    )
+  }
+
+  const handleViewEmails = (customerEmail: string) => {
+    // Find the customer name
+    const customer = customerCards.find(c => c.customerEmail.toLowerCase() === customerEmail.toLowerCase())
+    const customerName = customer?.customer || customerEmail.split('@')[0]
+    
+    // Filter emails for this customer
+    const filteredEmails = rawEmails.filter(email => 
+      email.from.emailAddress.address.toLowerCase() === customerEmail.toLowerCase()
+    )
+    
+    setSelectedCustomer({ name: customerName, email: customerEmail })
+    setCustomerEmails(filteredEmails)
+    setEmailModalOpen(true)
+  }
+
+  const handleCloseEmailModal = () => {
+    setEmailModalOpen(false)
+    setSelectedCustomer(null)
+    setCustomerEmails([])
+  }
+
   // Show loading state while authentication is being established
   if (!isAuthenticated || !hasActiveAccount) {
     return (
@@ -289,10 +356,14 @@ export function Dashboard() {
   }
 
   const totalEmails = emailSenderCards.reduce((sum, card) => sum + card.totalEmails, 0)
-  const totalChecked = emailSenderCards.reduce((sum, card) => 
+  const totalCheckedEmails = emailSenderCards.reduce((sum, card) => 
     sum + card.emails.filter(email => email.isChecked).length, 0)
   const totalForwarded = emailSenderCards.reduce((sum, card) => 
     sum + card.emails.filter(email => email.isForwarded).length, 0)
+
+  const totalTrucks = customerCards.reduce((sum, card) => sum + card.trucks.length, 0)
+  const totalCheckedTrucks = customerCards.reduce((sum, card) => 
+    sum + card.trucks.filter(truck => truck.isChecked).length, 0)
 
   return (
     <Box>
@@ -305,34 +376,32 @@ export function Dashboard() {
             <FormControlLabel
               control={
                 <Switch
-                  checked={viewMode === 'cards'}
-                  onChange={(e) => setViewMode(e.target.checked ? 'cards' : 'raw')}
+                  checked={viewMode === 'customers'}
+                  onChange={(e) => setViewMode(e.target.checked ? 'customers' : 'senders')}
                   size="small"
                 />
               }
               label={
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  {viewMode === 'cards' ? <ViewModule /> : <ViewList />}
+                  {viewMode === 'customers' ? <SmartToy /> : <ViewModule />}
                   <Typography variant="body2">
-                    {viewMode === 'cards' ? 'Card View' : 'List View'}
+                    {viewMode === 'customers' ? 'AI Parsed' : 'Senders'}
                   </Typography>
                 </Box>
               }
             />
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {wsConnected ? (
-                <WifiTethering color="success" />
-              ) : (
-                <WifiTetheringOff color="error" />
-              )}
-              <Typography variant="body2">
-                {wsConnected ? 'Live' : 'Offline'}
-              </Typography>
-            </Box>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setViewMode(viewMode === 'customers' ? 'senders' : viewMode === 'senders' ? 'raw' : 'customers')}
+              sx={{ textTransform: 'none' }}
+            >
+              Switch View
+            </Button>
             <Typography variant="body2">
               Last updated: {lastRefresh.toLocaleTimeString()}
             </Typography>
-            <IconButton color="inherit" onClick={handleRefresh} disabled={loading}>
+            <IconButton color="inherit" onClick={handleRefresh} disabled={loading || aiProcessing}>
               <Refresh />
             </IconButton>
             <IconButton color="inherit" onClick={handleLogout}>
@@ -358,47 +427,80 @@ export function Dashboard() {
         </Alert>
       )}
 
-      {loading ? (
+      {(loading || aiProcessing) ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
           <CircularProgress size={60} />
           <Typography variant="h6" sx={{ ml: 2 }}>
-            Fetching emails...
+            {loading ? 'Fetching emails...' : 'Processing emails with AI...'}
           </Typography>
         </Box>
       ) : (
         <>
           <Box sx={{ mb: 3 }}>
             <Typography variant="h5" gutterBottom>
-              Live Email Feed Dashboard
+              {viewMode === 'customers' ? 'AI-Parsed Truck Availability' : 
+               viewMode === 'senders' ? 'Live Email Feed Dashboard' : 
+               'Raw Email Feed'}
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-              <Typography variant="body1" color="text.secondary">
-                {emailSenderCards.length} senders • {totalEmails} emails
-              </Typography>
-              <Chip 
-                icon={wsConnected ? <WifiTethering /> : <WifiTetheringOff />}
-                label={wsConnected ? "Live updates active" : "Offline"}
-                size="small"
-                color={wsConnected ? "success" : "error"}
-              />
-              {totalChecked > 0 && (
-                <Chip
-                  label={`${totalChecked} checked`}
-                  size="small"
-                  color="success"
-                />
-              )}
-              {totalForwarded > 0 && (
-                <Chip
-                  label={`${totalForwarded} forwarded`}
-                  size="small"
-                  color="secondary"
-                />
+              {viewMode === 'customers' ? (
+                <>
+                  <Typography variant="body1" color="text.secondary">
+                    {customerCards.length} customers • {totalTrucks} trucks available
+                  </Typography>
+                  {totalCheckedTrucks > 0 && (
+                    <Chip
+                      label={`${totalCheckedTrucks} checked`}
+                      size="small"
+                      color="success"
+                    />
+                  )}
+                </>
+              ) : (
+                <>
+                  <Typography variant="body1" color="text.secondary">
+                    {viewMode === 'senders' ? emailSenderCards.length : rawEmails.length} {viewMode === 'senders' ? 'senders' : 'emails'} 
+                    {viewMode === 'senders' && ` • ${totalEmails} emails`}
+                  </Typography>
+                  {viewMode === 'senders' && totalCheckedEmails > 0 && (
+                    <Chip
+                      label={`${totalCheckedEmails} checked`}
+                      size="small"
+                      color="success"
+                    />
+                  )}
+                  {viewMode === 'senders' && totalForwarded > 0 && (
+                    <Chip
+                      label={`${totalForwarded} forwarded`}
+                      size="small"
+                      color="secondary"
+                    />
+                  )}
+                </>
               )}
             </Box>
           </Box>
 
-          {viewMode === 'cards' ? (
+          {viewMode === 'customers' ? (
+            customerCards.length > 0 ? (
+              <Grid container spacing={3}>
+                {customerCards.map((customer) => (
+                  <Grid item xs={12} md={6} lg={4} key={customer.customerEmail}>
+                    <CustomerCardComponent
+                      customer={customer}
+                      onCheckTruck={handleCheckTruck}
+                      onDeleteTruck={handleDeleteTruck}
+                      onViewEmails={handleViewEmails}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            ) : (
+              <Typography color="text.secondary" align="center">
+                No truck availability data found. AI will process incoming emails to extract truck information.
+              </Typography>
+            )
+          ) : viewMode === 'senders' ? (
             emailSenderCards.length > 0 ? (
               <Grid container spacing={3}>
                 {emailSenderCards.map((senderCard) => (
@@ -430,10 +532,7 @@ export function Dashboard() {
                     
                     return (
                       <Grid item xs={12} md={6} lg={4} key={email.id}>
-                        <Card sx={{ 
-                          animation: isNew ? 'pulse 2s ease-in-out' : 'none',
-                          border: isNew ? '2px solid #4caf50' : 'none'
-                        }}>
+                        <Card>
                           <CardContent>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                               <Email sx={{ fontSize: 16 }} />
@@ -485,14 +584,13 @@ export function Dashboard() {
           )}
         </>
       )}
-
-      <style jsx>{`
-        @keyframes pulse {
-          0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
-          70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
-        }
-      `}</style>
+      <EmailModal
+        open={emailModalOpen}
+        onClose={handleCloseEmailModal}
+        customerName={selectedCustomer?.name || ''}
+        customerEmail={selectedCustomer?.email || ''}
+        emails={customerEmails}
+      />
     </Box>
   )
 } 

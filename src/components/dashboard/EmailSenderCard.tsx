@@ -144,41 +144,42 @@ export function EmailSenderCard({
                   />
                   
                   <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                        <Email sx={{ fontSize: 14 }} />
-                        <Typography variant="body2" fontWeight="medium" noWrap sx={{ flexGrow: 1 }}>
-                          {email.subject}
-                        </Typography>
-                        {email.isForwarded && (
-                          <Chip 
-                            icon={<Forward />} 
-                            label="Fwd" 
-                            size="small" 
-                            color="secondary"
-                            sx={{ fontSize: '0.7rem', height: '20px' }}
-                          />
-                        )}
-                      </Box>
-                    }
+                    primary={email.subject}
                     secondary={
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <>
+                        <Typography variant="caption" color="text.secondary" component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <AccessTime sx={{ fontSize: 12 }} />
                           {formatEmailDate(email.receivedDateTime)}
                         </Typography>
                         {email.isForwarded && email.originalSender && (
-                          <Typography variant="caption" color="primary" sx={{ fontWeight: 'bold' }}>
+                          <Typography variant="caption" color="primary" component="span" sx={{ fontWeight: 'bold', display: 'block' }}>
                             Original: {email.originalSender.name}
                           </Typography>
                         )}
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                        <Typography variant="caption" color="text.secondary" component="span" sx={{ display: 'block', mt: 0.5 }}>
                           {email.bodyPreview.substring(0, 80)}...
                         </Typography>
-                      </Box>
+                      </>
                     }
+                    primaryTypographyProps={{ 
+                      variant: "body2", 
+                      fontWeight: "medium", 
+                      noWrap: true,
+                      sx: { display: 'flex', alignItems: 'center', gap: 0.5 }
+                    }}
+                    secondaryTypographyProps={{ component: 'div' }}
                     sx={{ ml: 0.5 }}
                   />
+                  
+                  {email.isForwarded && (
+                    <Chip 
+                      icon={<Forward />} 
+                      label="Fwd" 
+                      size="small" 
+                      color="secondary"
+                      sx={{ fontSize: '0.7rem', height: '20px', mr: 1 }}
+                    />
+                  )}
                   
                   <ListItemSecondaryAction>
                     <IconButton
