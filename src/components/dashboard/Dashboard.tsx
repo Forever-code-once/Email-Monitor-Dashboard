@@ -12,28 +12,30 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  Chip,
+  Switch,
+  FormControlLabel,
   Card,
   CardContent,
-  Chip,
 } from '@mui/material'
-import { Refresh, Logout, Email, Forward, WifiTethering, WifiTetheringOff } from '@mui/icons-material'
+import { Refresh, Logout, WifiTethering, WifiTetheringOff, ViewModule, ViewList, Email, Forward } from '@mui/icons-material'
 import { getGraphClient, getEmails } from '@/lib/graphClient'
-import { parseEmailWithAI, extractCustomerName, generateTruckId, isForwardedEmail, extractOriginalSenderFromForwardedEmail, stripHtmlTags } from '@/lib/emailParser'
-import { CustomerCard as CustomerCardType, TruckAvailability, EmailMessage } from '@/types'
-import { CustomerCard } from './CustomerCard'
+import { isForwardedEmail, extractOriginalSenderFromForwardedEmail, stripHtmlTags } from '@/lib/emailParser'
+import { EmailMessage, EmailSenderCard, EmailItem } from '@/types'
+import { EmailSenderCard as EmailSenderCardComponent } from './EmailSenderCard'
 import { EmailWebSocketClient } from '@/lib/websocket'
 
 export function Dashboard() {
   const { instance, accounts } = useMsal()
   const isAuthenticated = useIsAuthenticated()
-  const [customerCards, setCustomerCards] = useState<CustomerCardType[]>([])
+  const [emailSenderCards, setEmailSenderCards] = useState<EmailSenderCard[]>([])
   const [rawEmails, setRawEmails] = useState<EmailMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [hasActiveAccount, setHasActiveAccount] = useState(false)
-  const [showRawEmails, setShowRawEmails] = useState(false)
   const [wsConnected, setWsConnected] = useState(false)
+  const [viewMode, setViewMode] = useState<'cards' | 'raw'>('cards')
   
   const wsClientRef = useRef<EmailWebSocketClient | null>(null)
 
@@ -76,8 +78,8 @@ export function Dashboard() {
         setRawEmails(prev => [email, ...prev]) // Add new email to the top
         setLastRefresh(new Date())
         
-        // You could also trigger AI parsing here if needed
-        // parseNewEmail(email)
+        // Update sender cards with new email
+        addEmailToSenderCards(email)
       })
 
       wsClient.on('emailUpdate', (data: any) => {
@@ -93,6 +95,99 @@ export function Dashboard() {
       }
     }
   }, [isAuthenticated, hasActiveAccount])
+
+  // Convert raw emails to sender cards
+  const convertEmailsToSenderCards = (emails: EmailMessage[]): EmailSenderCard[] => {
+    const senderMap = new Map<string, EmailSenderCard>()
+
+    emails.forEach(email => {
+      const senderEmail = email.from.emailAddress.address
+      const senderName = email.from.emailAddress.name || email.from.emailAddress.address
+      
+      const isForwarded = isForwardedEmail(email.body.content)
+      const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(email.body.content) : undefined
+
+      const emailItem: EmailItem = {
+        id: email.id,
+        subject: email.subject,
+        bodyPreview: stripHtmlTags(email.bodyPreview),
+        receivedDateTime: email.receivedDateTime,
+        isChecked: false,
+        isForwarded,
+        originalSender: originalSender || undefined
+      }
+
+      if (senderMap.has(senderEmail)) {
+        const senderCard = senderMap.get(senderEmail)!
+        senderCard.emails.push(emailItem)
+        senderCard.totalEmails++
+        
+        // Update last email date if this email is newer
+        const emailDate = new Date(email.receivedDateTime)
+        if (emailDate > senderCard.lastEmailDate) {
+          senderCard.lastEmailDate = emailDate
+        }
+      } else {
+        senderMap.set(senderEmail, {
+          senderName,
+          senderEmail,
+          emails: [emailItem],
+          lastEmailDate: new Date(email.receivedDateTime),
+          totalEmails: 1
+        })
+      }
+    })
+
+    // Sort sender cards by last email date (newest first)
+    return Array.from(senderMap.values()).sort((a, b) => 
+      b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
+    )
+  }
+
+  // Add a new email to existing sender cards
+  const addEmailToSenderCards = (email: EmailMessage) => {
+    const senderEmail = email.from.emailAddress.address
+    const senderName = email.from.emailAddress.name || email.from.emailAddress.address
+    
+    const isForwarded = isForwardedEmail(email.body.content)
+    const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(email.body.content) : undefined
+
+    const emailItem: EmailItem = {
+      id: email.id,
+      subject: email.subject,
+      bodyPreview: stripHtmlTags(email.bodyPreview),
+      receivedDateTime: email.receivedDateTime,
+      isChecked: false,
+      isForwarded,
+      originalSender: originalSender || undefined
+    }
+
+    setEmailSenderCards(prev => {
+      const updated = [...prev]
+      const existingSenderIndex = updated.findIndex(card => card.senderEmail === senderEmail)
+      
+      if (existingSenderIndex >= 0) {
+        // Add to existing sender
+        updated[existingSenderIndex].emails.unshift(emailItem) // Add to front
+        updated[existingSenderIndex].totalEmails++
+        updated[existingSenderIndex].lastEmailDate = new Date(email.receivedDateTime)
+      } else {
+        // Create new sender card
+        updated.unshift({
+          senderName,
+          senderEmail,
+          emails: [emailItem],
+          lastEmailDate: new Date(email.receivedDateTime),
+          totalEmails: 1
+        })
+      }
+
+      // Re-sort by last email date
+      return updated.sort((a, b) => 
+        b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
+      )
+    })
+  }
 
   const fetchAndProcessEmails = async () => {
     // Double-check authentication before proceeding
@@ -112,11 +207,13 @@ export function Dashboard() {
       console.log('Fetched emails:', emails.length)
       setRawEmails(emails)
 
-      // For now, let's skip AI parsing and show raw email data
+      // Convert emails to sender cards
+      const senderCards = convertEmailsToSenderCards(emails)
+      setEmailSenderCards(senderCards)
+
       if (emails.length > 0) {
         const forwardedCount = emails.filter(email => isForwardedEmail(email.body.content)).length
-        setError(`✅ Successfully fetched ${emails.length} emails! (${forwardedCount} forwarded) `)
-        setShowRawEmails(true)
+        setError(`✅ Successfully fetched ${emails.length} emails from ${senderCards.length} senders! (${forwardedCount} forwarded)`)
       } else {
         setError('No emails found in the mailbox.')
       }
@@ -158,23 +255,24 @@ export function Dashboard() {
     }
   }
 
-  const handleCheckTruck = (truckId: string) => {
-    setCustomerCards(prevCards =>
+  const handleCheckEmail = (emailId: string) => {
+    setEmailSenderCards(prevCards =>
       prevCards.map(card => ({
         ...card,
-        trucks: card.trucks.map(truck =>
-          truck.id === truckId ? { ...truck, isChecked: !truck.isChecked } : truck
+        emails: card.emails.map(email =>
+          email.id === emailId ? { ...email, isChecked: !email.isChecked } : email
         ),
       }))
     )
   }
 
-  const handleDeleteTruck = (truckId: string) => {
-    setCustomerCards(prevCards =>
+  const handleDeleteEmail = (emailId: string) => {
+    setEmailSenderCards(prevCards =>
       prevCards.map(card => ({
         ...card,
-        trucks: card.trucks.filter(truck => truck.id !== truckId),
-      })).filter(card => card.trucks.length > 0)
+        emails: card.emails.filter(email => email.id !== emailId),
+        totalEmails: card.emails.filter(email => email.id !== emailId).length,
+      })).filter(card => card.emails.length > 0)
     )
   }
 
@@ -190,6 +288,12 @@ export function Dashboard() {
     )
   }
 
+  const totalEmails = emailSenderCards.reduce((sum, card) => sum + card.totalEmails, 0)
+  const totalChecked = emailSenderCards.reduce((sum, card) => 
+    sum + card.emails.filter(email => email.isChecked).length, 0)
+  const totalForwarded = emailSenderCards.reduce((sum, card) => 
+    sum + card.emails.filter(email => email.isForwarded).length, 0)
+
   return (
     <Box>
       <AppBar position="static" elevation={0} sx={{ mb: 3 }}>
@@ -198,6 +302,23 @@ export function Dashboard() {
             Email Monitor Dashboard
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={viewMode === 'cards'}
+                  onChange={(e) => setViewMode(e.target.checked ? 'cards' : 'raw')}
+                  size="small"
+                />
+              }
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  {viewMode === 'cards' ? <ViewModule /> : <ViewList />}
+                  <Typography variant="body2">
+                    {viewMode === 'cards' ? 'Card View' : 'List View'}
+                  </Typography>
+                </Box>
+              }
+            />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {wsConnected ? (
                 <WifiTethering color="success" />
@@ -248,102 +369,119 @@ export function Dashboard() {
         <>
           <Box sx={{ mb: 3 }}>
             <Typography variant="h5" gutterBottom>
-              Email Monitor Dashboard
+              Live Email Feed Dashboard
             </Typography>
-            <Typography variant="body1" color="text.secondary">
-              {showRawEmails ? (
-                <>
-                  {rawEmails.length} emails loaded - 
-                  <Chip 
-                    icon={wsConnected ? <WifiTethering /> : <WifiTetheringOff />}
-                    label={wsConnected ? "Real-time updates active" : "Real-time updates offline"}
-                    size="small"
-                    color={wsConnected ? "success" : "error"}
-                    sx={{ ml: 1 }}
-                  />
-                </>
-              ) : 'No data to display'}
-            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+              <Typography variant="body1" color="text.secondary">
+                {emailSenderCards.length} senders • {totalEmails} emails
+              </Typography>
+              <Chip 
+                icon={wsConnected ? <WifiTethering /> : <WifiTetheringOff />}
+                label={wsConnected ? "Live updates active" : "Offline"}
+                size="small"
+                color={wsConnected ? "success" : "error"}
+              />
+              {totalChecked > 0 && (
+                <Chip
+                  label={`${totalChecked} checked`}
+                  size="small"
+                  color="success"
+                />
+              )}
+              {totalForwarded > 0 && (
+                <Chip
+                  label={`${totalForwarded} forwarded`}
+                  size="small"
+                  color="secondary"
+                />
+              )}
+            </Box>
           </Box>
 
-          {showRawEmails && rawEmails.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                📧 Real-time Email Feed ({rawEmails.length} emails):
-              </Typography>
-              <Grid container spacing={2}>
-                {rawEmails.map((email, index) => {
-                  const isForwarded = isForwardedEmail(email.body.content)
-                  const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(email.body.content) : null
-                  const isNew = index === 0 && (new Date().getTime() - new Date(email.receivedDateTime).getTime()) < 30000 // Less than 30 seconds old
-                  
-                  return (
-                    <Grid item xs={12} md={6} lg={4} key={email.id}>
-                      <Card sx={{ 
-                        animation: isNew ? 'pulse 2s ease-in-out' : 'none',
-                        border: isNew ? '2px solid #4caf50' : 'none'
-                      }}>
-                        <CardContent>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                            <Email sx={{ fontSize: 16 }} />
-                            <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
-                              {email.subject}
-                            </Typography>
-                            {isNew && (
-                              <Chip 
-                                label="NEW" 
-                                size="small" 
-                                color="success"
-                                sx={{ fontSize: '0.7rem' }}
-                              />
-                            )}
-                            {isForwarded && (
-                              <Chip 
-                                icon={<Forward />} 
-                                label="Forwarded" 
-                                size="small" 
-                                color="secondary" 
-                              />
-                            )}
-                          </Box>
-                          
-                          <Typography variant="body2" color="text.secondary">
-                            <strong>From (Forwarder):</strong> {email.from.emailAddress.name} ({email.from.emailAddress.address})
-                          </Typography>
-                          
-                          {isForwarded && originalSender && (
-                            <Typography variant="body2" color="primary" sx={{ fontWeight: 'bold' }}>
-                              <strong>Original Customer:</strong> {originalSender.name} ({originalSender.email})
-                            </Typography>
-                          )}
-                          
-                          <Typography variant="body2" color="text.secondary">
-                            <strong>Date:</strong> {new Date(email.receivedDateTime).toLocaleString()}
-                          </Typography>
-                          <Typography variant="body2" sx={{ mt: 1 }}>
-                            <strong>Preview:</strong> {stripHtmlTags(email.bodyPreview).substring(0, 100)}...
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  )
-                })}
+          {viewMode === 'cards' ? (
+            emailSenderCards.length > 0 ? (
+              <Grid container spacing={3}>
+                {emailSenderCards.map((senderCard) => (
+                  <Grid item xs={12} md={6} lg={4} key={senderCard.senderEmail}>
+                    <EmailSenderCardComponent
+                      senderCard={senderCard}
+                      onCheckEmail={handleCheckEmail}
+                      onDeleteEmail={handleDeleteEmail}
+                    />
+                  </Grid>
+                ))}
               </Grid>
-            </Box>
-          )}
-
-          {customerCards.length > 0 && (
-            <Grid container spacing={3}>
-              {customerCards.map((customer) => (
-                <Grid item xs={12} md={6} lg={4} key={customer.customerEmail}>
-                  <CustomerCard
-                    customer={customer}
-                    onCheckTruck={handleCheckTruck}
-                    onDeleteTruck={handleDeleteTruck}
-                  />
+            ) : (
+              <Typography color="text.secondary" align="center">
+                No emails to display
+              </Typography>
+            )
+          ) : (
+            rawEmails.length > 0 && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  📧 Raw Email Feed ({rawEmails.length} emails):
+                </Typography>
+                <Grid container spacing={2}>
+                  {rawEmails.map((email, index) => {
+                    const isForwarded = isForwardedEmail(email.body.content)
+                    const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(email.body.content) : null
+                    const isNew = index === 0 && (new Date().getTime() - new Date(email.receivedDateTime).getTime()) < 30000 // Less than 30 seconds old
+                    
+                    return (
+                      <Grid item xs={12} md={6} lg={4} key={email.id}>
+                        <Card sx={{ 
+                          animation: isNew ? 'pulse 2s ease-in-out' : 'none',
+                          border: isNew ? '2px solid #4caf50' : 'none'
+                        }}>
+                          <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                              <Email sx={{ fontSize: 16 }} />
+                              <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
+                                {email.subject}
+                              </Typography>
+                              {isNew && (
+                                <Chip 
+                                  label="NEW" 
+                                  size="small" 
+                                  color="success"
+                                  sx={{ fontSize: '0.7rem' }}
+                                />
+                              )}
+                              {isForwarded && (
+                                <Chip 
+                                  icon={<Forward />} 
+                                  label="Forwarded" 
+                                  size="small" 
+                                  color="secondary" 
+                                />
+                              )}
+                            </Box>
+                            
+                            <Typography variant="body2" color="text.secondary">
+                              <strong>From:</strong> {email.from.emailAddress.name} ({email.from.emailAddress.address})
+                            </Typography>
+                            
+                            {isForwarded && originalSender && (
+                              <Typography variant="body2" color="primary" sx={{ fontWeight: 'bold' }}>
+                                <strong>Original Customer:</strong> {originalSender.name} ({originalSender.email})
+                              </Typography>
+                            )}
+                            
+                            <Typography variant="body2" color="text.secondary">
+                              <strong>Date:</strong> {new Date(email.receivedDateTime).toLocaleString()}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 1 }}>
+                              <strong>Preview:</strong> {stripHtmlTags(email.bodyPreview).substring(0, 100)}...
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    )
+                  })}
                 </Grid>
-              ))}
-            </Grid>
+              </Box>
+            )
           )}
         </>
       )}

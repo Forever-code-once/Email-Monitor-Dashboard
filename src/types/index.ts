@@ -19,6 +19,28 @@ export interface CustomerCard {
   lastEmailDate: Date
 }
 
+// New interface for sender-based email cards
+export interface EmailSenderCard {
+  senderName: string
+  senderEmail: string
+  emails: EmailItem[]
+  lastEmailDate: Date
+  totalEmails: number
+}
+
+export interface EmailItem {
+  id: string
+  subject: string
+  bodyPreview: string
+  receivedDateTime: string
+  isChecked: boolean
+  isForwarded: boolean
+  originalSender?: {
+    name: string
+    email: string
+  }
+}
+
 export interface ParsedEmailData {
   customer: string
   customerEmail: string
