@@ -1,6 +1,0 @@
-{
-  "/_not-found": "app/_not-found.js",
-  "/api/parse-email/route": "app/api/parse-email/route.js",
-  "/api/websocket/route": "app/api/websocket/route.js",
-  "/page": "app/page.js"
-}
