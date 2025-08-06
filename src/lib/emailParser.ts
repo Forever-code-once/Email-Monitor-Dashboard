@@ -1,6 +1,6 @@
 import { ParsedEmailData, EmailMessage } from '@/types'
 
-export async function parseEmailWithAI(email: EmailMessage): Promise<ParsedEmailData | null> {
+export async function parseEmailWithAI(email: EmailMessage): Promise<ParsedEmailData[]> {
   try {
     const response = await fetch('/api/parse-email', {
       method: 'POST',
@@ -19,10 +19,17 @@ export async function parseEmailWithAI(email: EmailMessage): Promise<ParsedEmail
     }
 
     const parsedData = await response.json()
-    return parsedData
+    
+    // Handle single customer response - convert to array
+    if (parsedData && !Array.isArray(parsedData)) {
+      return [parsedData]
+    }
+    
+    // Handle array response
+    return Array.isArray(parsedData) ? parsedData : []
   } catch (error) {
     console.error('Error parsing email:', error)
-    return null
+    return []
   }
 }
 

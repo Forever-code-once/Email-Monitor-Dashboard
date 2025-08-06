@@ -161,9 +161,11 @@ export function Dashboard() {
         
         const promises = batch.map(async (email) => {
           try {
-            const parsedData = await parseEmailWithAI(email)
-            if (parsedData && parsedData.trucks.length > 0) {
-              return { email, parsedData }
+            const parsedDataArray = await parseEmailWithAI(email)
+            // parseEmailWithAI now returns an array
+            if (parsedDataArray && Array.isArray(parsedDataArray) && parsedDataArray.length > 0) {
+              // Return each customer as a separate result
+              return parsedDataArray.map(parsedData => ({ email, parsedData }))
             }
           } catch (error) {
             console.error(`Error parsing email ${email.id}:`, error)
@@ -178,21 +180,29 @@ export function Dashboard() {
           processedCount++
           
           if (result.status === 'fulfilled' && result.value) {
-            const { email, parsedData } = result.value
+            // result.value is now an array of { email, parsedData } objects
+            const emailResults = Array.isArray(result.value) ? result.value : [result.value]
             
-            // Filter out simulated data
-            if (parsedData.customer === 'Company Name' || 
-                parsedData.customerEmail === 'email@domain.com' ||
-                parsedData.customer.includes('TNCC Inc Dispatch') ||
-                email.id?.startsWith('email-')) {
-              console.log('🚫 Filtered out simulated data during processing:', parsedData.customer)
-              return
-            }
+            emailResults.forEach(({ email, parsedData }) => {
             
-            successCount++
-            const customerKey = parsedData.customerEmail.toLowerCase()
-            
-            const trucks: TruckAvailability[] = parsedData.trucks.map(truck => ({
+              // Filter out simulated data
+              if (parsedData.customer === 'Company Name' || 
+                  parsedData.customerEmail === 'email@domain.com' ||
+                  parsedData.customer.includes('TNCC Inc Dispatch') ||
+                  email.id?.startsWith('email-')) {
+                console.log('🚫 Filtered out simulated data during processing:', parsedData.customer)
+                return
+              }
+              
+              // Only process if we have trucks
+              if (!parsedData.trucks || !Array.isArray(parsedData.trucks) || parsedData.trucks.length === 0) {
+                return
+              }
+              
+              successCount++
+              const customerKey = parsedData.customerEmail.toLowerCase()
+              
+              const trucks: TruckAvailability[] = parsedData.trucks.map(truck => ({
               id: generateTruckId(email, truck.city, truck.state, truck.date),
               customer: parsedData.customer,
               customerEmail: parsedData.customerEmail,
@@ -227,6 +237,7 @@ export function Dashboard() {
                 lastEmailDate: new Date(email.receivedDateTime)
               })
             }
+            })
           }
         })
 

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     // Truncate email body to prevent token limit issues
     const truncatedBody = truncateEmailContent(body)
 
-    const prompt = `Extract truck availability from this email. Look for forwarded email patterns and identify the ORIGINAL sender as the customer.
+         const prompt = `Extract truck availability from this email. Look for ALL truck locations mentioned in the email.
 
 Email Details:
 Subject: ${subject}
@@ -44,9 +44,15 @@ From: ${from.name} <${from.address}>
 Body: ${truncatedBody}
 
 Instructions:
-1. If forwarded, find ORIGINAL sender (customer) in forwarding chain
-2. Extract dates and locations for truck availability
-3. Clean up company names (remove Inc/LLC/Dispatch/etc)
+1. If forwarded, find the ORIGINAL sender (customer) in the forwarding chain
+2. Extract ALL dates and locations for truck availability mentioned in the email
+3. Look for patterns like:
+   - "Friday 7/25" followed by "Gallipolis, OH"
+   - "Monday 7/28" followed by "Memphis, TN"
+   - Multiple locations listed for same date
+   - Different dates with different locations
+4. Each truck entry should have a unique city/state combination
+5. Clean up company names (remove Inc/LLC/Dispatch/etc)
 
 Return ONLY valid JSON:
 {
@@ -58,20 +64,32 @@ Return ONLY valid JSON:
       "city": "Gallipolis",
       "state": "OH",
       "additionalInfo": "optional details"
+    },
+    {
+      "date": "Friday 7/25", 
+      "city": "Greenville",
+      "state": "SC",
+      "additionalInfo": "optional details"
+    },
+    {
+      "date": "Monday 7/28",
+      "city": "Memphis", 
+      "state": "TN",
+      "additionalInfo": "optional details"
     }
   ]
 }
 
-If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
+Extract EVERY truck location mentioned - do not duplicate the same city/state. If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
 
     const openai = getOpenAIClient()
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
-        {
-          role: "system",
-          content: "You extract truck availability data from emails. Always return valid JSON. For forwarded emails, identify the original sender as the customer."
-        },
+                 {
+           role: "system",
+           content: "You extract ALL truck availability data from emails. Look for every location mentioned. Return valid JSON with unique city/state combinations. For forwarded emails, identify the original sender as the customer."
+         },
         {
           role: "user",
           content: prompt
