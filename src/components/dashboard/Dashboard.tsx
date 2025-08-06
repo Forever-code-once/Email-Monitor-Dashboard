@@ -675,7 +675,7 @@ export function Dashboard() {
         <>
           <Box sx={{ mb: 3 }}>
             <Typography variant="h5" gutterBottom>
-              {viewMode === 'customers' ? 'Powered by Mr.Conrad Email A.I.' : 
+              {viewMode === 'customers' ? 'AI-Parsed Truck Availability' : 
                viewMode === 'senders' ? 'Live Email Feed Dashboard' : 
                'Raw Email Feed'}
             </Typography>
