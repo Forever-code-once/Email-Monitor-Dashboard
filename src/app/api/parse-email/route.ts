@@ -12,7 +12,7 @@ function getOpenAIClient() {
   })
 }
 
-function truncateEmailContent(content: string, maxLength: number = 3000): string {
+function truncateEmailContent(content: string, maxLength: number = 8000): string {
   if (content.length <= maxLength) return content
   
   // Try to truncate at a reasonable point (end of sentence or paragraph)
@@ -47,48 +47,69 @@ Instructions:
 1. If forwarded, find the ORIGINAL sender (customer) in the forwarding chain
 2. Extract ALL dates and locations for truck availability mentioned in the email
 3. Look for patterns like:
-   - "Friday 7/25" followed by "Gallipolis, OH"
-   - "Monday 7/28" followed by "Memphis, TN"
-   - Multiple locations listed for same date
-   - Different dates with different locations
-4. Each truck entry should have a unique city/state combination
-5. Clean up company names (remove Inc/LLC/Dispatch/etc)
+   - TABLE FORMAT: "Available Date | Type | City | State | Preferred Destination"
+   - DATE COLUMNS: "8/1-8/2", "08/04/2025", "08/07/2025" etc.
+   - LOCATION COLUMNS: City and State in separate columns
+   - City, State format like "Midland, TX" or "Nashville, TN" ... etc.
+   - Multiple locations listed under each date
+   - Bullet points or line items with locations
+4. For TABLE FORMAT emails, extract each row as a separate truck entry
+5. For LONG TABLES (20+ rows), process ALL rows systematically - do not truncate or summarize
+6. Each truck entry should be a unique city/state combination for that date
+7. Clean up company names (remove Inc/LLC/Dispatch/etc)
+8. IMPORTANT: Create separate entries for each location, even if they're on the same date
+
+Example input formats:
+
+LIST FORMAT:
+"Monday 7/28
+• Midland, TX
+• Cookeville, TN  
+• Hawthorne, CA"
+
+TABLE FORMAT:
+"Available Date | Type | City | State | Preferred Destination
+8/1-8/2 | 53R | Olney | IL | MN
+08/04/2025 | 53R | Mechanicsville | VA | MN
+08/07/2025 | 53R | Fort Mill | SC | MN"
+
+Both should extract as separate truck entries for each location with their respective dates.
 
 Return ONLY valid JSON:
 {
-  "customer": "Company Name",
-  "customerEmail": "email@domain.com", 
+  "customer": "DAGG",
+  "customerEmail": "dispatchcw@dagetttruck.com", 
   "trucks": [
     {
-      "date": "Friday 7/25",
-      "city": "Gallipolis",
-      "state": "OH",
-      "additionalInfo": "optional details"
+      "date": "8/1-8/2",
+      "city": "Olney",
+      "state": "IL",
+      "additionalInfo": "53R to MN"
     },
     {
-      "date": "Friday 7/25", 
-      "city": "Greenville",
+      "date": "08/04/2025", 
+      "city": "Mechanicsville",
+      "state": "VA",
+      "additionalInfo": "53R to MN"
+    },
+    {
+      "date": "08/07/2025",
+      "city": "Fort Mill", 
       "state": "SC",
-      "additionalInfo": "optional details"
-    },
-    {
-      "date": "Monday 7/28",
-      "city": "Memphis", 
-      "state": "TN",
-      "additionalInfo": "optional details"
+      "additionalInfo": "53R to MN"
     }
   ]
 }
 
-Extract EVERY truck location mentioned - do not duplicate the same city/state. If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
+Extract EVERY location as a separate truck entry. If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
 
     const openai = getOpenAIClient()
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini", // Better at handling long structured data
       messages: [
                  {
            role: "system",
-           content: "You extract ALL truck availability data from emails. Look for every location mentioned. Return valid JSON with unique city/state combinations. For forwarded emails, identify the original sender as the customer."
+           content: "You extract ALL truck availability data from emails. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. For forwarded emails, identify the original sender as the customer."
          },
         {
           role: "user",
@@ -96,7 +117,7 @@ Extract EVERY truck location mentioned - do not duplicate the same city/state. I
         }
       ],
       temperature: 0.1,
-      max_tokens: 800, // Reduced from 1000
+      max_tokens: 1500, // Increased to handle long truck lists
     })
 
     const content = completion.choices[0]?.message?.content?.trim()
@@ -146,7 +167,7 @@ Extract EVERY truck location mentioned - do not duplicate the same city/state. I
     if (error instanceof Error && error.message.includes('context_length_exceeded')) {
       try {
         const { subject, body, from } = await request.json()
-        const veryShortBody = truncateEmailContent(body, 1000) // Much shorter
+        const veryShortBody = truncateEmailContent(body, 4000) // Still preserve more table data
         
         const shortPrompt = `Extract truck availability from: "${subject}" - ${veryShortBody}
 Return JSON: {"customer":"Name","customerEmail":"email","trucks":[{"date":"Day M/D","city":"City","state":"ST"}]}`
@@ -169,12 +190,13 @@ Return JSON: {"customer":"Name","customerEmail":"email","trucks":[{"date":"Day M
       }
     }
     
-    // Final fallback
-    const { from } = await request.json()
-    return NextResponse.json({
-      customer: from.name || from.address.split('@')[0],
-      customerEmail: from.address,
-      trucks: []
-    })
+         // Final fallback - use actual sender info instead of template
+     const { from } = await request.json()
+     console.log('🔄 Using fallback for email from:', from.name, from.address)
+     return NextResponse.json({
+       customer: from.name || from.address.split('@')[0],
+       customerEmail: from.address,
+       trucks: []
+     })
   }
 } 

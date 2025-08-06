@@ -130,5 +130,10 @@ export function formatDate(dateString: string): string {
 }
 
 export function generateTruckId(email: EmailMessage, city: string, state: string, date: string): string {
-  return `${email.id}-${city}-${state}-${date}`.replace(/\s+/g, '-')
+  // Create a more robust unique ID by including normalized values
+  const normalizedCity = city.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+  const normalizedState = state.trim().toUpperCase().replace(/[^A-Z]/g, '')
+  const normalizedDate = date.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+  
+  return `${email.id}-${normalizedCity}-${normalizedState}-${normalizedDate}`
 } 

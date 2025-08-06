@@ -36,6 +36,7 @@ export function Dashboard() {
   const [rawEmails, setRawEmails] = useState<EmailMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [aiProcessing, setAiProcessing] = useState(false)
+  const [aiProgress, setAiProgress] = useState({ processed: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [hasActiveAccount, setHasActiveAccount] = useState(false)
@@ -145,14 +146,15 @@ export function Dashboard() {
     }
   }, [isAuthenticated, hasActiveAccount])
 
-  // Process all emails with AI to create customer cards (for initial load)
+  // Process all emails with AI to create customer cards (progressive loading)
   const processAllEmailsWithAI = async (emails: EmailMessage[]) => {
     setAiProcessing(true)
+    setAiProgress({ processed: 0, total: emails.length })
     const customerMap = new Map<string, CustomerCard>()
 
     try {
-      // Reduced batch size to prevent API overload
-      const batchSize = 3
+      // Increased batch size for faster processing
+      const batchSize = 8
       let processedCount = 0
       let successCount = 0
       
@@ -188,11 +190,16 @@ export function Dashboard() {
               // Filter out simulated data
               if (parsedData.customer === 'Company Name' || 
                   parsedData.customerEmail === 'email@domain.com' ||
+                  parsedData.customer === 'Customer Company Name' ||
+                  parsedData.customer === 'Another Customer Company' ||
                   parsedData.customer.includes('TNCC Inc Dispatch') ||
                   email.id?.startsWith('email-')) {
-                console.log('🚫 Filtered out simulated data during processing:', parsedData.customer)
+                console.log('🚫 Filtered out simulated data during processing:', parsedData.customer, 'Email:', parsedData.customerEmail)
                 return
               }
+              
+              // Debug: Log real customer data being processed
+              console.log('✅ Processing real customer:', parsedData.customer, 'Trucks:', parsedData.trucks?.length || 0)
               
               // Only process if we have trucks
               if (!parsedData.trucks || !Array.isArray(parsedData.trucks) || parsedData.trucks.length === 0) {
@@ -241,25 +248,32 @@ export function Dashboard() {
           }
         })
 
-        // Add a longer delay between batches to respect API limits
+        // Update progress and UI progressively after each batch
+        setAiProgress({ processed: processedCount, total: emails.length })
+        const customerCardsArray = Array.from(customerMap.values()).sort((a, b) => 
+          b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
+        )
+        setCustomerCards(customerCardsArray)
+
+        // Shorter delay between batches for faster processing
         if (i + batchSize < emails.length) {
-          await new Promise(resolve => setTimeout(resolve, 2000))
+          await new Promise(resolve => setTimeout(resolve, 800))
         }
       }
 
-      // Convert map to array and sort
-      const customerCardsArray = Array.from(customerMap.values()).sort((a, b) => 
+      // Final update after all batches complete
+      const finalCustomerCardsArray = Array.from(customerMap.values()).sort((a, b) => 
         b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
       )
 
-      setCustomerCards(customerCardsArray)
+      setCustomerCards(finalCustomerCardsArray)
       
-      const totalTrucks = customerCardsArray.reduce((sum, card) => sum + card.trucks.length, 0)
-      console.log(`AI Processing completed: ${customerCardsArray.length} customers, ${totalTrucks} trucks from ${successCount}/${processedCount} emails`)
+      const totalTrucks = finalCustomerCardsArray.reduce((sum, card) => sum + card.trucks.length, 0)
+      console.log(`AI Processing completed: ${finalCustomerCardsArray.length} customers, ${totalTrucks} trucks from ${successCount}/${processedCount} emails`)
       
       // Update success message
       if (successCount > 0) {
-        setError(`✅ AI processed ${successCount}/${processedCount} emails successfully! Found ${totalTrucks} trucks from ${customerCardsArray.length} customers.`)
+        setError(`✅ AI processed ${successCount}/${processedCount} emails successfully! Found ${totalTrucks} trucks from ${finalCustomerCardsArray.length} customers.`)
       } else {
         setError('⚠️ AI processing completed but no truck availability data was found in the emails.')
       }
@@ -277,11 +291,16 @@ export function Dashboard() {
     // Filter out simulated data
     if (parsedData.customer === 'Company Name' || 
         parsedData.customerEmail === 'email@domain.com' ||
+        parsedData.customer === 'Customer Company Name' ||
+        parsedData.customer === 'Another Customer Company' ||
         parsedData.customer.includes('TNCC Inc Dispatch') ||
         email.id?.startsWith('email-')) {
-      console.log('🚫 Filtered out simulated data:', parsedData.customer)
+      console.log('🚫 Filtered out simulated data:', parsedData.customer, 'Email:', parsedData.customerEmail)
       return
     }
+    
+    // Debug: Log real customer data being processed
+    console.log('✅ Processing real customer in addParsedDataToCustomerCards:', parsedData.customer, 'Trucks:', parsedData.trucks?.length || 0)
 
     const trucks: TruckAvailability[] = parsedData.trucks.map(truck => ({
       id: generateTruckId(email, truck.city, truck.state, truck.date),
@@ -440,7 +459,7 @@ export function Dashboard() {
 
     try {
       const graphClient = getGraphClient(instance as any)
-      const emails: EmailMessage[] = await getEmails(graphClient, 100)
+      const emails: EmailMessage[] = await getEmails(graphClient, 50) // Reduced for faster initial load
       
       console.log('Fetched emails:', emails.length)
       setRawEmails(emails)
@@ -449,14 +468,21 @@ export function Dashboard() {
       const senderCards = convertEmailsToSenderCards(emails)
       setEmailSenderCards(senderCards)
 
-      // Process emails with AI for customer cards (initial load)
-      await processAllEmailsWithAI(emails)
-
       if (emails.length > 0) {
         const forwardedCount = emails.filter(email => isForwardedEmail(email.body.content)).length
         setError(`✅ Successfully fetched ${emails.length} emails from ${senderCards.length} senders! (${forwardedCount} forwarded)`)
+        
+        // Show UI immediately, then process AI in background
+        setLoading(false)
+        
+        // Start AI processing in background (non-blocking)
+        processAllEmailsWithAI(emails).catch(err => {
+          console.error('Background AI processing failed:', err)
+          setError('⚠️ Some emails could not be processed for truck data.')
+        })
       } else {
         setError('No emails found in the mailbox.')
+        setLoading(false)
       }
 
       setLastRefresh(new Date())
@@ -467,7 +493,6 @@ export function Dashboard() {
       } else {
         setError('Failed to fetch emails. Please check your permissions and try again.')
       }
-    } finally {
       setLoading(false)
     }
   }
@@ -675,15 +700,31 @@ export function Dashboard() {
         </Alert>
       )}
 
-      {(loading || aiProcessing) ? (
+      {loading ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
           <CircularProgress size={60} />
           <Typography variant="h6" sx={{ ml: 2 }}>
-            {loading ? 'Fetching emails...' : 'Processing emails with AI...'}
+            Fetching emails...
           </Typography>
         </Box>
       ) : (
         <>
+          {aiProcessing && (
+            <Card sx={{ mb: 3, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+              <CardContent sx={{ py: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <CircularProgress size={24} color="inherit" />
+                  <Typography variant="body1">
+                    🤖 AI Processing: {aiProgress.processed}/{aiProgress.total} emails
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Customer cards will update automatically...
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+          
           <Box sx={{ mb: 3 }}>
             <Typography variant="h5" gutterBottom>
               {viewMode === 'customers' ? 'AI-Parsed Truck Availability' : 
