@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMsal, useIsAuthenticated } from '@azure/msal-react'
 import {
   Box,
@@ -26,6 +26,7 @@ import { EmailMessage, EmailSenderCard, EmailItem, CustomerCard, TruckAvailabili
 import { EmailSenderCard as EmailSenderCardComponent } from './EmailSenderCard'
 import { CustomerCard as CustomerCardComponent } from './CustomerCard'
 import { EmailModal } from './EmailModal'
+import { EmailWebSocketClient } from '@/lib/websocket'
 
 export function Dashboard() {
   const { instance, accounts } = useMsal()
@@ -39,6 +40,9 @@ export function Dashboard() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [hasActiveAccount, setHasActiveAccount] = useState(false)
   const [viewMode, setViewMode] = useState<'customers' | 'senders' | 'raw'>('customers')
+  const [wsConnected, setWsConnected] = useState(false)
+  
+  const wsClientRef = useRef<EmailWebSocketClient | null>(null)
   
   // Modal state
   const [emailModalOpen, setEmailModalOpen] = useState(false)
@@ -59,9 +63,89 @@ export function Dashboard() {
     }
 
     checkActiveAccount()
+    
+    // Clear any simulated data on component mount
+    setCustomerCards([])
   }, [isAuthenticated, accounts, instance])
 
-  // Process all emails with AI to create customer cards
+  // Initialize WebSocket connection
+  useEffect(() => {
+    if (isAuthenticated && hasActiveAccount) {
+      const wsClient = new EmailWebSocketClient('ws://localhost:8080')
+      wsClientRef.current = wsClient
+
+      // Set up WebSocket event listeners
+      wsClient.on('connection', (data: any) => {
+        console.log('✅ WebSocket connected:', data.message)
+        setWsConnected(true)
+      })
+
+      wsClient.on('disconnection', (data: any) => {
+        console.log('❌ WebSocket disconnected')
+        setWsConnected(false)
+      })
+
+      wsClient.on('newEmail', (data: any) => {
+        console.log('📧 New email received via WebSocket:', data.email.subject)
+        const { email, aiProcessed } = data
+        
+        // Add raw email to the list
+        setRawEmails(prev => [email, ...prev])
+        
+        // Add to sender cards
+        addEmailToSenderCards(email)
+        
+        // If AI processed successfully, add to customer cards
+        if (aiProcessed && aiProcessed.trucks.length > 0) {
+          addParsedDataToCustomerCards(email, aiProcessed)
+        }
+        
+        setLastRefresh(new Date())
+        
+        // Show notification
+        setError(`🔔 New email received: ${email.subject}`)
+        setTimeout(() => setError(null), 5000) // Clear after 5 seconds
+      })
+
+      wsClient.on('monitoringStatus', (data: any) => {
+        console.log('🔄 Monitoring status changed:', data.active ? 'Active' : 'Inactive')
+      })
+
+      wsClient.on('serverStatus', (data: any) => {
+        console.log('📊 Server status:', data)
+      })
+
+      wsClient.on('heartbeat', (data: any) => {
+        // Server is alive, update last seen time
+        setLastRefresh(new Date(data.timestamp))
+      })
+
+      wsClient.on('serverError', (data: any) => {
+        console.error('❌ Server error:', data.message)
+        setError(`Server error: ${data.message}`)
+      })
+
+      wsClient.on('error', (error: any) => {
+        console.error('❌ WebSocket error:', error)
+        setWsConnected(false)
+      })
+
+      wsClient.on('maxReconnectAttemptsReached', () => {
+        console.error('❌ Failed to reconnect to WebSocket server')
+        setWsConnected(false)
+        setError('⚠️ Lost connection to real-time server. Using manual refresh only.')
+      })
+
+      // Connect to WebSocket
+      wsClient.connect()
+
+      return () => {
+        wsClient.disconnect()
+      }
+    }
+  }, [isAuthenticated, hasActiveAccount])
+
+  // Process all emails with AI to create customer cards (for initial load)
   const processAllEmailsWithAI = async (emails: EmailMessage[]) => {
     setAiProcessing(true)
     const customerMap = new Map<string, CustomerCard>()
@@ -95,6 +179,16 @@ export function Dashboard() {
           
           if (result.status === 'fulfilled' && result.value) {
             const { email, parsedData } = result.value
+            
+            // Filter out simulated data
+            if (parsedData.customer === 'Company Name' || 
+                parsedData.customerEmail === 'email@domain.com' ||
+                parsedData.customer.includes('TNCC Inc Dispatch') ||
+                email.id?.startsWith('email-')) {
+              console.log('🚫 Filtered out simulated data during processing:', parsedData.customer)
+              return
+            }
+            
             successCount++
             const customerKey = parsedData.customerEmail.toLowerCase()
             
@@ -167,6 +261,113 @@ export function Dashboard() {
     }
   }
 
+  // Add parsed data to customer cards (moved from processAllEmailsWithAI)
+  const addParsedDataToCustomerCards = (email: EmailMessage, parsedData: ParsedEmailData) => {
+    // Filter out simulated data
+    if (parsedData.customer === 'Company Name' || 
+        parsedData.customerEmail === 'email@domain.com' ||
+        parsedData.customer.includes('TNCC Inc Dispatch') ||
+        email.id?.startsWith('email-')) {
+      console.log('🚫 Filtered out simulated data:', parsedData.customer)
+      return
+    }
+
+    const trucks: TruckAvailability[] = parsedData.trucks.map(truck => ({
+      id: generateTruckId(email, truck.city, truck.state, truck.date),
+      customer: parsedData.customer,
+      customerEmail: parsedData.customerEmail,
+      date: truck.date,
+      city: truck.city,
+      state: truck.state,
+      additionalInfo: truck.additionalInfo,
+      emailId: email.id,
+      emailSubject: email.subject,
+      emailDate: new Date(email.receivedDateTime),
+      isChecked: false
+    }))
+
+    setCustomerCards(prev => {
+      const updated = [...prev]
+      const existingCustomerIndex = updated.findIndex(
+        card => card.customerEmail.toLowerCase() === parsedData.customerEmail.toLowerCase()
+      )
+
+      if (existingCustomerIndex >= 0) {
+        // Add trucks to existing customer
+        const existingCard = updated[existingCustomerIndex]
+        const newTrucks = trucks.filter(truck => 
+          !existingCard.trucks.some(existingTruck => existingTruck.id === truck.id)
+        )
+        
+        if (newTrucks.length > 0) {
+          updated[existingCustomerIndex] = {
+            ...existingCard,
+            trucks: [...existingCard.trucks, ...newTrucks],
+            lastEmailDate: new Date(email.receivedDateTime)
+          }
+        }
+      } else {
+        // Create new customer card
+        updated.push({
+          customer: parsedData.customer,
+          customerEmail: parsedData.customerEmail,
+          trucks: trucks,
+          lastEmailDate: new Date(email.receivedDateTime)
+        })
+      }
+
+      // Sort by last email date
+      return updated.sort((a, b) => 
+        b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
+      )
+    })
+  }
+
+  // Add a new email to existing sender cards (moved from original location)
+  const addEmailToSenderCards = (email: EmailMessage) => {
+    const senderEmail = email.from.emailAddress.address
+    const senderName = email.from.emailAddress.name || email.from.emailAddress.address
+    
+    const isForwarded = isForwardedEmail(email.body.content)
+    const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(email.body.content) : undefined
+
+    const emailItem: EmailItem = {
+      id: email.id,
+      subject: email.subject,
+      bodyPreview: stripHtmlTags(email.bodyPreview),
+      receivedDateTime: email.receivedDateTime,
+      isChecked: false,
+      isForwarded,
+      originalSender: originalSender || undefined
+    }
+
+    setEmailSenderCards(prev => {
+      const updated = [...prev]
+      const existingSenderIndex = updated.findIndex(card => card.senderEmail === senderEmail)
+      
+      if (existingSenderIndex >= 0) {
+        // Add to existing sender
+        updated[existingSenderIndex].emails.unshift(emailItem) // Add to front
+        updated[existingSenderIndex].totalEmails++
+        updated[existingSenderIndex].lastEmailDate = new Date(email.receivedDateTime)
+      } else {
+        // Create new sender card
+        updated.unshift({
+          senderName,
+          senderEmail,
+          emails: [emailItem],
+          lastEmailDate: new Date(email.receivedDateTime),
+          totalEmails: 1
+        })
+      }
+
+      // Re-sort by last email date
+      return updated.sort((a, b) => 
+        b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
+      )
+    })
+  }
+
   // Convert raw emails to sender cards
   const convertEmailsToSenderCards = (emails: EmailMessage[]): EmailSenderCard[] => {
     const senderMap = new Map<string, EmailSenderCard>()
@@ -237,9 +438,9 @@ export function Dashboard() {
       const senderCards = convertEmailsToSenderCards(emails)
       setEmailSenderCards(senderCards)
 
-      // Process emails with AI for customer cards
+      // Process emails with AI for customer cards (initial load)
       await processAllEmailsWithAI(emails)
-
+      
       if (emails.length > 0) {
         const forwardedCount = emails.filter(email => isForwardedEmail(email.body.content)).length
         setError(`✅ Successfully fetched ${emails.length} emails from ${senderCards.length} senders! (${forwardedCount} forwarded)`)
@@ -277,6 +478,8 @@ export function Dashboard() {
 
   const handleRefresh = () => {
     if (isAuthenticated && hasActiveAccount) {
+      // Clear existing customer cards to remove any simulated data
+      setCustomerCards([])
       fetchAndProcessEmails()
     }
   }
@@ -343,6 +546,15 @@ export function Dashboard() {
     setCustomerEmails([])
   }
 
+  const handleClearSampleData = () => {
+    // Clear all data to remove any simulated content
+    setCustomerCards([])
+    setEmailSenderCards([])
+    setRawEmails([])
+    setError('✅ All data cleared. Refresh to load only real email data.')
+    setTimeout(() => setError(null), 5000)
+  }
+
   // Show loading state while authentication is being established
   if (!isAuthenticated || !hasActiveAccount) {
     return (
@@ -398,9 +610,34 @@ export function Dashboard() {
             >
               Switch View
             </Button>
+            {viewMode === 'customers' && customerCards.length > 0 && (
+              <Button
+                size="small"
+                variant="contained"
+                color="error"
+                onClick={handleClearSampleData}
+                sx={{ textTransform: 'none' }}
+              >
+                🗑️ Clear All Data
+              </Button>
+            )}
             <Typography variant="body2">
               Last updated: {lastRefresh.toLocaleTimeString()}
             </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box 
+                sx={{ 
+                  width: 8, 
+                  height: 8, 
+                  borderRadius: '50%', 
+                  backgroundColor: wsConnected ? 'success.main' : 'error.main',
+                  animation: wsConnected ? 'pulse 2s infinite' : 'none'
+                }} 
+              />
+              <Typography variant="body2" color={wsConnected ? 'success.main' : 'error.main'}>
+                {wsConnected ? 'Real-time Active' : 'Manual Refresh Only'}
+              </Typography>
+            </Box>
             <IconButton color="inherit" onClick={handleRefresh} disabled={loading || aiProcessing}>
               <Refresh />
             </IconButton>
@@ -584,6 +821,15 @@ export function Dashboard() {
           )}
         </>
       )}
+
+      <style jsx>{`
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
+      `}</style>
+
       <EmailModal
         open={emailModalOpen}
         onClose={handleCloseEmailModal}

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "websocket": "cross-env NEXTJS_URL=http://localhost:3001 node server/websocket-server.js",
+    "dev:full": "concurrently \"npm run dev\" \"npm run websocket\""
   },
   "dependencies": {
     "@azure/msal-browser": "^3.7.1",
@@ -18,7 +20,9 @@
     "@mui/material": "^5.15.10",
     "@mui/x-date-pickers": "^6.19.4",
     "date-fns": "^3.3.1",
+    "dotenv": "^17.2.1",
     "next": "14.1.0",
+    "node-fetch": "^3.3.2",
     "openai": "^4.28.0",
     "react": "^18",
     "react-dom": "^18",
@@ -30,6 +34,8 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/ws": "^8.18.1",
+    "concurrently": "^9.2.0",
+    "cross-env": "^10.0.0",
     "eslint": "^8",
     "eslint-config-next": "14.1.0",
     "typescript": "^5"

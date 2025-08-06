@@ -1,14 +1,17 @@
 # Email Monitor Dashboard
 
-An AI-powered truck availability monitoring dashboard that integrates with Microsoft Graph API to read emails and extract truck availability data using OpenAI.
+An AI-powered truck availability monitoring dashboard that integrates with Microsoft Graph API to read emails and extract truck availability data using OpenAI, with **real-time WebSocket updates**.
 
 ## Features
 
 - **Microsoft Graph API Integration**: Secure authentication and email reading
 - **AI-Powered Email Parsing**: Uses OpenAI GPT to extract truck availability data
-- **Real-time Dashboard**: Live feed of truck availability organized by customer
+- **Real-time WebSocket Updates**: Live email monitoring with instant AI processing (NEW!)
 - **Card-based UI**: Clean, modern interface with Material-UI components
 - **Interactive Controls**: Check/uncheck and delete truck availability entries
+- **Email Modal**: View full email content from customers with lightbox popup
+- **Multiple Views**: AI-parsed customer cards, sender-based cards, and raw email feed
+- **Connection Status**: Visual indicators showing real-time connection status
 - **Responsive Design**: Works on desktop and mobile devices
 
 ## Prerequisites
@@ -71,18 +74,53 @@ NEXTAUTH_SECRET=your_random_secret_here
 NEXTAUTH_URL=http://localhost:3000
 ```
 
-### 5. Run the Application
+### 5. Start the Application
 
+#### For Real-time Monitoring (Recommended):
 ```bash
-# Development mode
+npm run dev:full
+```
+This starts both the Next.js dashboard and the WebSocket server for real-time email monitoring.
+
+#### Or Start Separately:
+```bash
+# Terminal 1: Next.js Dashboard
 npm run dev
 
-# Production build
-npm run build
-npm start
+# Terminal 2: WebSocket Server
+npm run websocket
 ```
 
+#### Manual Refresh Only:
+```bash
+npm run dev
+```
+This starts only the Next.js dashboard without real-time updates.
+
 Visit `http://localhost:3000` to access the dashboard.
+
+## Real-Time Features
+
+### WebSocket Integration
+The application now includes a standalone WebSocket server that provides **true real-time email monitoring**:
+
+- **Automatic Email Polling**: Checks for new emails every 30 seconds
+- **Instant AI Processing**: New emails are automatically processed with OpenAI
+- **Live Dashboard Updates**: New truck availability appears instantly without refresh
+- **Connection Status**: Visual indicators show real-time connection health
+- **Auto-Reconnection**: Automatic reconnection with exponential backoff
+- **Graceful Fallback**: Falls back to manual refresh if WebSocket fails
+
+### Real-Time Indicators
+- 🟢 **Green Pulsing Dot**: "Real-time Active" - WebSocket connected and monitoring
+- 🔴 **Red Dot**: "Manual Refresh Only" - WebSocket disconnected
+- 🔔 **Live Notifications**: Shows "New email received: [Subject]" for 5 seconds
+
+### WebSocket Server Details
+- **Port**: 8080 (WebSocket server)
+- **API Integration**: Calls Next.js API routes for AI processing
+- **Message Types**: CONNECTION_STATUS, NEW_EMAIL, MONITORING_STATUS, HEARTBEAT, SERVER_STATUS
+- **Real-Time Processing**: Processes actual emails from Microsoft Graph API (no simulation)
 
 ## How It Works
 
@@ -154,20 +192,57 @@ The AI extracts:
 
 ## Deployment
 
-### Vercel (Recommended)
+### Development vs Production
 
+#### Development (Local):
+- Next.js: `http://localhost:3000` (or auto-assigned port)
+- WebSocket server: `http://localhost:8080`
+- Use `npm run dev:full` for complete real-time experience
+
+#### Production Considerations:
+The WebSocket server requires a separate hosting solution since most static hosting platforms (like Vercel) don't support persistent WebSocket connections.
+
+### Next.js Dashboard Deployment
+
+#### Vercel (Recommended for Dashboard):
 1. Push code to GitHub
 2. Connect repository to Vercel
 3. Add environment variables in Vercel dashboard
 4. Update Azure app registration redirect URI to production URL
 
-### Other Platforms
-
-The app can be deployed on any platform supporting Next.js:
+#### Other Platforms:
+The dashboard can be deployed on any platform supporting Next.js:
 - Netlify
 - Railway
 - DigitalOcean App Platform
 - AWS Amplify
+
+### WebSocket Server Deployment
+
+For production WebSocket functionality, deploy the server separately:
+
+#### Options:
+- **Railway**: Great for Node.js WebSocket servers
+- **Heroku**: Supports WebSocket connections
+- **DigitalOcean Droplets**: Full control with Docker
+- **AWS EC2**: Scalable cloud hosting
+- **Google Cloud Run**: Serverless container hosting
+
+#### Configuration:
+1. Set `NEXTJS_URL` environment variable to your production Next.js URL
+2. Update WebSocket client URL in Dashboard.tsx to production WebSocket server
+3. Ensure CORS is properly configured for cross-origin WebSocket connections
+
+#### Docker Example:
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY server/ ./server/
+EXPOSE 8080
+CMD ["node", "server/websocket-server.js"]
+```
 
 ## Security Considerations
 
