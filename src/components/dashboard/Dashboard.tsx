@@ -440,7 +440,7 @@ export function Dashboard() {
 
       // Process emails with AI for customer cards (initial load)
       await processAllEmailsWithAI(emails)
-      
+
       if (emails.length > 0) {
         const forwardedCount = emails.filter(email => isForwardedEmail(email.body.content)).length
         setError(`✅ Successfully fetched ${emails.length} emails from ${senderCards.length} senders! (${forwardedCount} forwarded)`)
@@ -682,13 +682,13 @@ export function Dashboard() {
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
               {viewMode === 'customers' ? (
                 <>
-                  <Typography variant="body1" color="text.secondary">
+              <Typography variant="body1" color="text.secondary">
                     {customerCards.length} customers • {totalTrucks} trucks available
-                  </Typography>
+              </Typography>
                   {totalCheckedTrucks > 0 && (
-                    <Chip
+              <Chip 
                       label={`${totalCheckedTrucks} checked`}
-                      size="small"
+                size="small"
                       color="success"
                     />
                   )}
@@ -700,18 +700,18 @@ export function Dashboard() {
                     {viewMode === 'senders' && ` • ${totalEmails} emails`}
                   </Typography>
                   {viewMode === 'senders' && totalCheckedEmails > 0 && (
-                    <Chip
+                <Chip
                       label={`${totalCheckedEmails} checked`}
-                      size="small"
-                      color="success"
-                    />
-                  )}
+                  size="small"
+                  color="success"
+                />
+              )}
                   {viewMode === 'senders' && totalForwarded > 0 && (
-                    <Chip
-                      label={`${totalForwarded} forwarded`}
-                      size="small"
-                      color="secondary"
-                    />
+                <Chip
+                  label={`${totalForwarded} forwarded`}
+                  size="small"
+                  color="secondary"
+                />
                   )}
                 </>
               )}

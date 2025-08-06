@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy initialize OpenAI client to avoid build-time errors
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is required')
+  }
+  
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  })
+}
 
 function truncateEmailContent(content: string, maxLength: number = 3000): string {
   if (content.length <= maxLength) return content
@@ -57,6 +64,7 @@ Return ONLY valid JSON:
 
 If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
 
+    const openai = getOpenAIClient()
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
@@ -125,6 +133,7 @@ If no truck data found, return: {"customer": "Company Name", "customerEmail": "e
         const shortPrompt = `Extract truck availability from: "${subject}" - ${veryShortBody}
 Return JSON: {"customer":"Name","customerEmail":"email","trucks":[{"date":"Day M/D","city":"City","state":"ST"}]}`
 
+        const openai = getOpenAIClient()
         const completion = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
           messages: [{ role: "user", content: shortPrompt }],

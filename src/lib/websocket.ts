@@ -23,7 +23,7 @@ export class EmailWebSocketClient {
     try {
       console.log('🔌 Connecting to WebSocket server...')
       this.ws = new WebSocket(this.url)
-
+      
       this.ws.onopen = () => {
         console.log('✅ WebSocket connected successfully')
         this.isConnected = true
@@ -142,11 +142,11 @@ export class EmailWebSocketClient {
       return
     }
 
-    this.reconnectAttempts++
+      this.reconnectAttempts++
     console.log(`🔄 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`)
-
-    setTimeout(() => {
-      this.connect()
+      
+      setTimeout(() => {
+        this.connect()
     }, this.reconnectDelay * this.reconnectAttempts) // Exponential backoff
   }
 

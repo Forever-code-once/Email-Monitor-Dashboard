@@ -96,11 +96,11 @@ export function CustomerCard({
         }
         action={
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
-            <Chip
-              label={`${customer.trucks.length} trucks`}
-              color="primary"
-              size="small"
-            />
+          <Chip
+            label={`${customer.trucks.length} trucks`}
+            color="primary"
+            size="small"
+          />
             {onViewEmails && (
               <Button
                 size="small"
