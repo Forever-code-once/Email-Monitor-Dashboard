@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "websocket": "cross-env NEXTJS_URL=http://localhost:3001 node server/websocket-server.js",
+    "websocket": "cross-env NEXTJS_URL=http://localhost:3000 node server/websocket-server.js",
     "dev:full": "concurrently \"npm run dev\" \"npm run websocket\""
   },
   "dependencies": {
