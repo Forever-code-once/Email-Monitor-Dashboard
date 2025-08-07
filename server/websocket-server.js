@@ -1,7 +1,7 @@
 const WebSocket = require('ws');
 const { Client } = require('@microsoft/microsoft-graph-client');
 const { AuthenticationProvider } = require('@microsoft/microsoft-graph-client');
-const fetch = require('node-fetch');
+require('isomorphic-fetch');
 require('dotenv').config({ path: '.env.local' });
 
 class EmailMonitorServer {
@@ -13,7 +13,7 @@ class EmailMonitorServer {
     this.clients = new Set();
     
     // Configuration
-    this.CHECK_INTERVAL = 30000; // Check every 30 seconds
+    this.CHECK_INTERVAL = 10000; // Check every 10 seconds for testing
     this.PORT = 8080;
     this.NEXTJS_URL = process.env.NEXTJS_URL || 'http://localhost:3000'; // Configurable Next.js URL
   }
@@ -83,11 +83,40 @@ class EmailMonitorServer {
         this.sendServerStatus();
         break;
       case 'FORCE_CHECK':
+        console.log('🔍 Manual email check requested');
         this.checkForNewEmails();
+        break;
+      case 'TEST_EMAIL':
+        console.log('🧪 Test email processing requested');
+        this.processTestEmail();
+        break;
+      case 'SET_ACCESS_TOKEN':
+        // Store access token for this client
+        this.setAccessToken(ws, message.data.token, message.data.expiresAt);
+        break;
+      case 'PING':
+        // Respond to ping with pong
+        this.sendToClient(ws, {
+          type: 'PONG',
+          data: { timestamp: new Date().toISOString() }
+        });
         break;
       default:
         console.log('❓ Unknown message type:', message.type);
     }
+  }
+
+  // Store access token for a specific client
+  setAccessToken(ws, token, expiresAt) {
+    ws.accessToken = token;
+    ws.tokenExpiresAt = expiresAt;
+    console.log('🔑 Access token stored for client');
+    
+    // Send confirmation
+    this.sendToClient(ws, {
+      type: 'TOKEN_CONFIRMED',
+      data: { message: 'Access token received and stored' }
+    });
   }
 
   // Start periodic email checking
@@ -99,13 +128,15 @@ class EmailMonitorServer {
 
     console.log('🔄 Starting email monitoring...');
     
-    // Initial check
+    // Do an initial check
     this.checkForNewEmails();
     
     // Set up periodic checking
     this.emailCheckInterval = setInterval(() => {
       this.checkForNewEmails();
     }, this.CHECK_INTERVAL);
+    
+    console.log(`✅ Email monitoring started - checking every ${this.CHECK_INTERVAL/1000} seconds`);
 
     this.broadcastToAll({
       type: 'MONITORING_STATUS',
@@ -139,9 +170,77 @@ class EmailMonitorServer {
     try {
       console.log('🔍 Checking for new emails...');
       
-      // TODO: Replace with real Microsoft Graph API integration
-      // For now, we'll skip email simulation - only process real emails
-      // when they come through the Next.js dashboard
+      // Get access token for Microsoft Graph API
+      const accessToken = await this.getAccessToken();
+      if (!accessToken) {
+        console.log('⚠️ No access token available, skipping email check');
+        return;
+      }
+
+      // Create Graph client
+      const graphClient = Client.init({
+        authProvider: (done) => {
+          done(null, accessToken);
+        }
+      });
+
+      // Get recent emails (last 10 minutes for testing)
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const query = `receivedDateTime ge ${tenMinutesAgo.toISOString()}`;
+      
+      const response = await graphClient
+        .api('/me/messages')
+        .filter(query)
+        .orderby('receivedDateTime desc')
+        .top(10)
+        .select('id,subject,body,receivedDateTime,from,isRead')
+        .get();
+
+      if (response.value && response.value.length > 0) {
+        console.log(`📧 Found ${response.value.length} recent emails`);
+        
+        for (const email of response.value) {
+          const emailId = email.id;
+          
+          // Skip if we've already processed this email
+          if (this.knownEmails.has(emailId)) {
+            continue;
+          }
+          
+          console.log(`📧 Processing new email: ${email.subject}`);
+          this.knownEmails.add(emailId);
+          
+          // Process with AI
+          const aiProcessed = await this.processEmailWithAI(email);
+          
+          // Broadcast to all clients
+          this.broadcastToAll({
+            type: 'NEW_EMAIL',
+            data: {
+              email: {
+                id: email.id,
+                subject: email.subject,
+                body: {
+                  content: email.body.content,
+                  contentType: email.body.contentType
+                },
+                receivedDateTime: email.receivedDateTime,
+                from: {
+                  emailAddress: {
+                    name: email.from.emailAddress.name,
+                    address: email.from.emailAddress.address
+                  }
+                },
+                isRead: email.isRead
+              },
+              aiProcessed: aiProcessed,
+              timestamp: new Date().toISOString()
+            }
+          });
+        }
+      } else {
+        console.log('📭 No new emails found');
+      }
       
       this.lastEmailCheck = new Date();
       
@@ -167,9 +266,64 @@ class EmailMonitorServer {
     }
   }
 
+  // Get access token for Microsoft Graph API
+  async getAccessToken() {
+    try {
+      // Find a client with a valid token
+      for (const client of this.clients) {
+        if (client.accessToken && client.tokenExpiresAt > Date.now()) {
+          return client.accessToken;
+        }
+      }
+
+      console.log('⚠️ No valid access token available from any client');
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting access token:', error);
+      return null;
+    }
+  }
+
+  // Process test email for debugging
+  async processTestEmail() {
+    const testEmail = {
+      id: 'test-email-' + Date.now(),
+      subject: 'Test: Truck Available - Midland, TX',
+      body: {
+        content: 'Available trucks in Midland, TX for 8/1-8/2. Contact dispatch for details.',
+        contentType: 'text'
+      },
+      receivedDateTime: new Date().toISOString(),
+      from: {
+        emailAddress: {
+          name: 'Test Dispatch',
+          address: 'test@example.com'
+        }
+      },
+      isRead: false
+    };
+
+    console.log('🧪 Processing test email:', testEmail.subject);
+    
+    // Process with AI
+    const aiProcessed = await this.processEmailWithAI(testEmail);
+    
+    // Broadcast to all clients
+    this.broadcastToAll({
+      type: 'NEW_EMAIL',
+      data: {
+        email: testEmail,
+        aiProcessed: aiProcessed,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+
   // Process email with AI using your existing API
   async processEmailWithAI(email) {
     try {
+      console.log(`🤖 Processing email "${email.subject}" with AI...`);
+      
       const response = await fetch(`${this.NEXTJS_URL}/api/parse-email`, {
         method: 'POST',
         headers: {
@@ -183,10 +337,14 @@ class EmailMonitorServer {
       });
 
       if (!response.ok) {
-        throw new Error('AI processing failed');
+        const errorText = await response.text();
+        console.error(`❌ AI processing failed with status ${response.status}:`, errorText);
+        throw new Error(`AI processing failed: ${response.status} ${errorText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log(`✅ AI processing completed for "${email.subject}":`, result);
+      return result;
     } catch (error) {
       console.error('❌ Error processing email with AI:', error);
       return null;

@@ -18,11 +18,12 @@ import {
   Card,
   CardContent,
 } from '@mui/material'
-import { Refresh, Logout, ViewModule, ViewList, Email, Forward, SmartToy } from '@mui/icons-material'
+import { Refresh, Logout, ViewModule, ViewList, Email, Forward, SmartToy, Key } from '@mui/icons-material'
 import { getGraphClient, getEmails } from '@/lib/graphClient'
 import { isForwardedEmail, extractOriginalSenderFromForwardedEmail, stripHtmlTags, generateTruckId } from '@/lib/emailParser'
 import { parseEmailWithAI } from '@/lib/emailParser'
 import { EmailMessage, EmailSenderCard, EmailItem, CustomerCard, TruckAvailability, ParsedEmailData } from '@/types'
+import { loginRequest } from '@/lib/msalConfig'
 import { EmailSenderCard as EmailSenderCardComponent } from './EmailSenderCard'
 import { CustomerCard as CustomerCardComponent } from './CustomerCard'
 import { EmailModal } from './EmailModal'
@@ -71,14 +72,53 @@ export function Dashboard() {
 
   // Initialize WebSocket connection
   useEffect(() => {
+    console.log('🔌 WebSocket useEffect triggered')
+    console.log('Is authenticated:', isAuthenticated)
+    console.log('Has active account:', hasActiveAccount)
+    
     if (isAuthenticated && hasActiveAccount) {
+      console.log('🔌 Attempting WebSocket connection...')
       const wsClient = new EmailWebSocketClient('ws://localhost:8080')
       wsClientRef.current = wsClient
 
       // Set up WebSocket event listeners
-      wsClient.on('connection', (data: any) => {
+      wsClient.on('connection', async (data: any) => {
         console.log('✅ WebSocket connected:', data.message)
         setWsConnected(true)
+        
+        console.log('🔍 Checking authentication status...')
+        console.log('Is authenticated:', isAuthenticated)
+        console.log('Has active account:', hasActiveAccount)
+        
+        // Send access token to WebSocket server
+        try {
+          console.log('🔍 Getting active account...')
+          const account = instance.getActiveAccount()
+          console.log('Active account:', account ? 'Found' : 'Not found')
+          
+          if (account) {
+            console.log('🔍 Acquiring token silently...')
+            const response = await instance.acquireTokenSilent({
+              ...loginRequest,
+              account: account,
+            })
+            
+            console.log('🔑 Token acquired, sending to WebSocket server...')
+            wsClient.send({
+              type: 'SET_ACCESS_TOKEN',
+              data: {
+                token: response.accessToken,
+                expiresAt: response.expiresOn?.getTime() || (Date.now() + 3600000) // 1 hour default
+              }
+            })
+            
+            console.log('✅ Access token sent to WebSocket server')
+          } else {
+            console.error('❌ No active account found')
+          }
+        } catch (error) {
+          console.error('❌ Failed to send access token to WebSocket server:', error)
+        }
       })
 
       wsClient.on('disconnection', (data: any) => {
@@ -116,9 +156,30 @@ export function Dashboard() {
         console.log('📊 Server status:', data)
       })
 
-      wsClient.on('heartbeat', (data: any) => {
+      wsClient.on('heartbeat', async (data: any) => {
         // Server is alive, update last seen time
         setLastRefresh(new Date(data.timestamp))
+        
+        // Refresh access token periodically
+        try {
+          const account = instance.getActiveAccount()
+          if (account) {
+            const response = await instance.acquireTokenSilent({
+              ...loginRequest,
+              account: account,
+            })
+            
+            wsClient.send({
+              type: 'SET_ACCESS_TOKEN',
+              data: {
+                token: response.accessToken,
+                expiresAt: response.expiresOn?.getTime() || (Date.now() + 3600000)
+              }
+            })
+          }
+        } catch (error) {
+          console.error('❌ Failed to refresh access token:', error)
+        }
       })
 
       wsClient.on('serverError', (data: any) => {
@@ -126,9 +187,22 @@ export function Dashboard() {
         setError(`Server error: ${data.message}`)
       })
 
+      wsClient.on('TOKEN_CONFIRMED', (data: any) => {
+        console.log('✅ Token confirmed by WebSocket server')
+      })
+
+      wsClient.on('pong', (data: any) => {
+        console.log('🏓 Pong received from server')
+      })
+
+      wsClient.on('tokenConfirmed', (data: any) => {
+        console.log('✅ Token confirmed by WebSocket server')
+      })
+
       wsClient.on('error', (error: any) => {
         console.error('❌ WebSocket error:', error)
         setWsConnected(false)
+        setError(`WebSocket connection error: ${error.message || 'Connection failed'}`)
       })
 
       wsClient.on('maxReconnectAttemptsReached', () => {
@@ -136,6 +210,19 @@ export function Dashboard() {
         setWsConnected(false)
         setError('⚠️ Lost connection to real-time server. Using manual refresh only.')
       })
+
+      // Add a fallback for when WebSocket fails
+      const fallbackTimeout = setTimeout(() => {
+        if (!wsConnected) {
+          console.log('⚠️ WebSocket connection failed, using manual refresh mode')
+          setError('⚠️ Real-time connection failed. Using manual refresh mode.')
+        }
+      }, 15000) // 15 second fallback
+
+      return () => {
+        clearTimeout(fallbackTimeout)
+        wsClient.disconnect()
+      }
 
       // Connect to WebSocket
       wsClient.connect()
@@ -358,13 +445,14 @@ export function Dashboard() {
     const senderEmail = email.from.emailAddress.address
     const senderName = email.from.emailAddress.name || email.from.emailAddress.address
     
-    const isForwarded = isForwardedEmail(email.body.content)
-    const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(email.body.content) : undefined
+    const emailContent = typeof email.body === 'string' ? email.body : email.body?.content || ''
+    const isForwarded = isForwardedEmail(emailContent)
+    const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(emailContent) : undefined
 
     const emailItem: EmailItem = {
       id: email.id,
       subject: email.subject,
-      bodyPreview: stripHtmlTags(email.bodyPreview),
+      bodyPreview: stripHtmlTags(email.bodyPreview || ''),
       receivedDateTime: email.receivedDateTime,
       isChecked: false,
       isForwarded,
@@ -406,13 +494,14 @@ export function Dashboard() {
       const senderEmail = email.from.emailAddress.address
       const senderName = email.from.emailAddress.name || email.from.emailAddress.address
       
-      const isForwarded = isForwardedEmail(email.body.content)
-      const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(email.body.content) : undefined
+      const emailContent = typeof email.body === 'string' ? email.body : email.body?.content || ''
+      const isForwarded = isForwardedEmail(emailContent)
+      const originalSender = isForwarded ? extractOriginalSenderFromForwardedEmail(emailContent) : undefined
 
       const emailItem: EmailItem = {
         id: email.id,
         subject: email.subject,
-        bodyPreview: stripHtmlTags(email.bodyPreview),
+        bodyPreview: stripHtmlTags(email.bodyPreview || ''),
         receivedDateTime: email.receivedDateTime,
         isChecked: false,
         isForwarded,
@@ -517,6 +606,147 @@ export function Dashboard() {
       // Clear existing customer cards to remove any simulated data
       setCustomerCards([])
       fetchAndProcessEmails()
+    }
+  }
+
+  const handleManualCheck = () => {
+    if (wsClientRef.current) {
+      wsClientRef.current.send({
+        type: 'FORCE_CHECK',
+        data: {}
+      })
+      setError('🔍 Manually checking for new emails...')
+    }
+  }
+
+  const handleTestEmail = () => {
+    console.log('🧪 Test email requested')
+    console.log('wsClientRef.current:', !!wsClientRef.current)
+    
+    if (!wsClientRef.current) {
+      console.log('🔌 Creating WebSocket connection for test...')
+      const wsClient = new EmailWebSocketClient('ws://localhost:8080')
+      wsClientRef.current = wsClient
+      
+      wsClient.on('connection', (data) => {
+        console.log('✅ Test connection successful:', data)
+        setWsConnected(true)
+        // Send test email after connection
+        setTimeout(() => {
+          wsClient.send({
+            type: 'TEST_EMAIL',
+            data: {}
+          })
+          setError('🧪 Processing test email...')
+        }, 1000)
+      })
+      
+      wsClient.on('error', (error) => {
+        console.error('❌ Test connection error:', error)
+        setError(`❌ Test connection failed: ${error.message}`)
+      })
+      
+      wsClient.connect()
+      setError('🔌 Connecting for test email...')
+      return
+    }
+    
+    const connectionStatus = wsClientRef.current.getConnectionStatus()
+    console.log('🔍 Test connection status:', connectionStatus)
+    
+    if (wsClientRef.current && connectionStatus.connected) {
+      console.log('🧪 Sending test email message...')
+      wsClientRef.current.send({
+        type: 'TEST_EMAIL',
+        data: {}
+      })
+      setError('🧪 Processing test email...')
+    } else {
+      console.error('❌ WebSocket not connected for test')
+      setError('❌ WebSocket not connected for test')
+    }
+  }
+
+  const handleSendToken = async () => {
+    console.log('🔑 Manual token send requested')
+    console.log('wsClientRef.current:', !!wsClientRef.current)
+    console.log('isAuthenticated:', isAuthenticated)
+    console.log('hasActiveAccount:', hasActiveAccount)
+    
+    if (!wsClientRef.current) {
+      console.log('🔌 Creating new WebSocket connection...')
+      const wsClient = new EmailWebSocketClient('ws://localhost:8080')
+      wsClientRef.current = wsClient
+      
+      // Add connection event listeners for debugging
+      wsClient.on('connection', (data) => {
+        console.log('✅ Manual connection successful:', data)
+        setWsConnected(true)
+        setError('✅ WebSocket connected!')
+      })
+      
+      wsClient.on('error', (error) => {
+        console.error('❌ Manual connection error:', error)
+        setError(`❌ WebSocket error: ${error.message}`)
+      })
+      
+      wsClient.on('disconnection', (data) => {
+        console.log('❌ Manual disconnection:', data)
+        setWsConnected(false)
+      })
+      
+      wsClient.connect()
+      setError('🔌 Creating new WebSocket connection...')
+      return
+    }
+    
+    // Check if WebSocket is connected
+    const connectionStatus = wsClientRef.current.getConnectionStatus()
+    console.log('🔍 WebSocket connection status:', connectionStatus)
+    
+    if (!connectionStatus.connected) {
+      console.log('🔌 WebSocket not connected, attempting to reconnect...')
+      wsClientRef.current.connect()
+      setError('🔌 Reconnecting WebSocket...')
+      
+      // Wait a bit and try again
+      setTimeout(() => {
+        const newStatus = wsClientRef.current?.getConnectionStatus()
+        console.log('🔍 WebSocket connection status after reconnect:', newStatus)
+        if (newStatus?.connected) {
+          setError('✅ WebSocket reconnected!')
+        } else {
+          setError('❌ WebSocket reconnection failed')
+        }
+      }, 2000)
+      return
+    }
+    
+    if (wsClientRef.current && isAuthenticated && hasActiveAccount) {
+      try {
+        console.log('🔍 Manually sending access token...')
+        const account = instance.getActiveAccount()
+        if (account) {
+          const response = await instance.acquireTokenSilent({
+            ...loginRequest,
+            account: account,
+          })
+          
+          wsClientRef.current.send({
+            type: 'SET_ACCESS_TOKEN',
+            data: {
+              token: response.accessToken,
+              expiresAt: response.expiresOn?.getTime() || (Date.now() + 3600000)
+            }
+          })
+          
+          setError('🔑 Access token sent manually')
+          setTimeout(() => setError(null), 3000)
+        }
+      } catch (error) {
+        console.error('❌ Failed to send token manually:', error)
+        setError('❌ Failed to send access token')
+      }
     }
   }
 
@@ -699,7 +929,25 @@ export function Dashboard() {
               <Typography variant="body2" color={wsConnected ? 'success.main' : 'error.main'}>
                 {wsConnected ? 'Real-time Active' : 'Manual Refresh Only'}
               </Typography>
+              {!wsConnected && (
+                <Typography variant="caption" color="warning.main">
+                  (Click refresh to retry)
+                </Typography>
+              )}
             </Box>
+            <IconButton 
+              color="inherit" 
+              onClick={handleSendToken} 
+              disabled={false} 
+              title="Send Access Token / Test Connection"
+              sx={{ 
+                color: 'inherit',
+                opacity: 1
+              }}
+            >
+              <Key />
+            </IconButton>
+
             <IconButton color="inherit" onClick={handleRefresh} disabled={loading || aiProcessing}>
               <Refresh />
             </IconButton>

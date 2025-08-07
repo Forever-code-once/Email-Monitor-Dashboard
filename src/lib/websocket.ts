@@ -17,15 +17,28 @@ export class EmailWebSocketClient {
 
   constructor(url: string) {
     this.url = url
+    console.log('🔌 EmailWebSocketClient constructor called with URL:', url)
   }
 
   connect() {
     try {
-      console.log('🔌 Connecting to WebSocket server...')
+      console.log('🔌 Connecting to WebSocket server at:', this.url)
       this.ws = new WebSocket(this.url)
+      console.log('🔌 WebSocket object created, setting up event listeners...')
+      
+      // Add connection timeout
+      const connectionTimeout = setTimeout(() => {
+        if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+          console.error('❌ WebSocket connection timeout')
+          console.error('❌ WebSocket readyState:', this.ws.readyState)
+          this.ws.close()
+          this.emit('error', new Error('Connection timeout'))
+        }
+      }, 5000) // 5 second timeout for faster debugging
       
       this.ws.onopen = () => {
         console.log('✅ WebSocket connected successfully')
+        clearTimeout(connectionTimeout) // Clear timeout on successful connection
         this.isConnected = true
         this.reconnectAttempts = 0
         this.emit('connection', { status: 'connected' })
@@ -38,6 +51,14 @@ export class EmailWebSocketClient {
           type: 'REQUEST_STATUS',
           data: {}
         })
+      }
+
+      this.ws.onclose = (event) => {
+        console.log('🔌 WebSocket disconnected, code:', event.code, 'reason:', event.reason)
+        this.isConnected = false
+        this.emit('disconnection', { status: 'disconnected', code: event.code, reason: event.reason })
+        this.stopHeartbeat()
+        this.attemptReconnect()
       }
 
       this.ws.onmessage = (event) => {
@@ -59,6 +80,8 @@ export class EmailWebSocketClient {
 
       this.ws.onerror = (error) => {
         console.error('❌ WebSocket error:', error)
+        console.error('❌ WebSocket readyState:', this.ws?.readyState)
+        clearTimeout(connectionTimeout) // Clear timeout on error
         this.emit('error', error)
       }
 
@@ -96,6 +119,16 @@ export class EmailWebSocketClient {
         
       case 'HEARTBEAT':
         this.emit('heartbeat', message.data)
+        break
+        
+      case 'PONG':
+        // Handle pong response to ping
+        this.emit('pong', message.data)
+        break
+        
+      case 'TOKEN_CONFIRMED':
+        // Handle token confirmation
+        this.emit('tokenConfirmed', message.data)
         break
         
       case 'ERROR':
@@ -155,6 +188,8 @@ export class EmailWebSocketClient {
       this.ws.send(JSON.stringify(message))
     } else {
       console.warn('⚠️ WebSocket not connected. Message not sent:', message)
+      console.warn('⚠️ WebSocket readyState:', this.ws?.readyState)
+      console.warn('⚠️ WebSocket exists:', !!this.ws)
     }
   }
 
