@@ -15,10 +15,12 @@ import {
   Box,
   Divider,
   Button,
+  CircularProgress,
 } from '@mui/material'
 import { Delete, LocationOn, Event, Email } from '@mui/icons-material'
 import { CustomerCard as CustomerCardType } from '@/types'
 import { formatDate } from '@/lib/emailParser'
+import { useState, useCallback } from 'react'
 
 interface CustomerCardProps {
   customer: CustomerCardType
@@ -33,6 +35,28 @@ export function CustomerCard({
   onDeleteTruck,
   onViewEmails,
 }: CustomerCardProps) {
+  const [deletingTrucks, setDeletingTrucks] = useState<Set<string>>(new Set())
+  
+  const handleDeleteTruck = useCallback((truckId: string) => {
+    if (deletingTrucks.has(truckId)) {
+      console.log('🚫 Delete already in progress for truck:', truckId)
+      return // Prevent duplicate delete operations
+    }
+    
+    setDeletingTrucks(prev => new Set(prev.add(truckId)))
+    console.log('🗑️ Starting delete for truck:', truckId)
+    
+    onDeleteTruck(truckId)
+    
+    // Clean up the deleting state after a brief delay
+    setTimeout(() => {
+      setDeletingTrucks(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(truckId)
+        return newSet
+      })
+    }, 500)
+  }, [deletingTrucks, onDeleteTruck])
   const formatEmailDate = (date: Date): string => {
     const now = new Date()
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
@@ -178,10 +202,19 @@ export function CustomerCard({
                       <IconButton
                         edge="end"
                         size="small"
-                        onClick={() => onDeleteTruck(truck.id)}
-                        sx={{ color: 'error.main' }}
+                        onClick={() => handleDeleteTruck(truck.id)}
+                        disabled={deletingTrucks.has(truck.id)}
+                        sx={{ 
+                          color: deletingTrucks.has(truck.id) ? 'action.disabled' : 'error.main',
+                          minWidth: 32,
+                          minHeight: 32
+                        }}
                       >
-                        <Delete fontSize="small" />
+                        {deletingTrucks.has(truck.id) ? (
+                          <CircularProgress size={16} color="inherit" />
+                        ) : (
+                          <Delete fontSize="small" />
+                        )}
                       </IconButton>
                     </ListItemSecondaryAction>
                   </ListItem>

@@ -553,12 +553,38 @@ export function Dashboard() {
   }
 
   const handleDeleteTruck = (truckId: string) => {
-    setCustomerCards(prevCards =>
-      prevCards.map(card => ({
-        ...card,
-        trucks: card.trucks.filter(truck => truck.id !== truckId),
-      })).filter(card => card.trucks.length > 0)
-    )
+    console.log('🗑️ Deleting truck with ID:', truckId)
+    
+    setCustomerCards(prevCards => {
+      const updatedCards = prevCards.map(card => {
+        const originalTruckCount = card.trucks.length
+        const filteredTrucks = card.trucks.filter(truck => {
+          const shouldKeep = truck.id !== truckId
+          if (!shouldKeep) {
+            console.log('🗑️ Found and removing truck:', truck.city, truck.state, truck.date)
+          }
+          return shouldKeep
+        })
+        
+        if (filteredTrucks.length !== originalTruckCount) {
+          console.log(`🗑️ Removed truck from ${card.customer}: ${originalTruckCount} -> ${filteredTrucks.length}`)
+        }
+        
+        return {
+          ...card,
+          trucks: filteredTrucks,
+        }
+      }).filter(card => {
+        const hasNoTrucks = card.trucks.length === 0
+        if (hasNoTrucks) {
+          console.log(`🗑️ Removing empty customer card: ${card.customer}`)
+        }
+        return !hasNoTrucks
+      })
+      
+      console.log('🗑️ Updated customer cards count:', updatedCards.length)
+      return updatedCards
+    })
   }
 
   const handleViewEmails = (customerEmail: string) => {

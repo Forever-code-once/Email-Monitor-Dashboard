@@ -130,10 +130,14 @@ export function formatDate(dateString: string): string {
 }
 
 export function generateTruckId(email: EmailMessage, city: string, state: string, date: string): string {
-  // Create a more robust unique ID by including normalized values
+  // Create a more robust unique ID by including normalized values and timestamp
   const normalizedCity = city.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
   const normalizedState = state.trim().toUpperCase().replace(/[^A-Z]/g, '')
   const normalizedDate = date.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
   
-  return `${email.id}-${normalizedCity}-${normalizedState}-${normalizedDate}`
+  // Add timestamp and random component to ensure uniqueness even for duplicates
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substr(2, 9)
+  
+  return `${email.id}-${normalizedCity}-${normalizedState}-${normalizedDate}-${timestamp}-${random}`
 } 
