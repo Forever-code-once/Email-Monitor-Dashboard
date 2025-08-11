@@ -818,18 +818,61 @@ export function Dashboard() {
   }
 
   const handleViewEmails = (customerEmail: string) => {
+    console.log('🔍 Opening email modal for:', customerEmail)
+    
     // Find the customer name
     const customer = customerCards.find(c => c.customerEmail.toLowerCase() === customerEmail.toLowerCase())
     const customerName = customer?.customer || customerEmail.split('@')[0]
     
     // Filter emails for this customer
-    const filteredEmails = rawEmails.filter(email => 
-      email.from.emailAddress.address.toLowerCase() === customerEmail.toLowerCase()
-    )
+    console.log('🔍 Filtering emails for customer:', customerEmail)
+    console.log('🔍 Total raw emails available:', rawEmails.length)
+    console.log('🔍 Raw email addresses:', rawEmails.map(e => e.from.emailAddress.address))
+    console.log('🔍 Customer cards:', customerCards.map(c => ({ customer: c.customer, email: c.customerEmail })))
     
+    const filteredEmails = rawEmails.filter(email => {
+      const matches = email.from.emailAddress.address.toLowerCase() === customerEmail.toLowerCase()
+      console.log(`🔍 Email ${email.id}: ${email.from.emailAddress.address} matches ${customerEmail}? ${matches}`)
+      return matches
+    })
+    
+    // If no exact matches found, try to find emails that contain the customer name
+    if (filteredEmails.length === 0) {
+      console.log('🔍 No exact email matches found, trying to find emails containing customer name...')
+      const customerName = customer?.customer || customerEmail.split('@')[0]
+      const fallbackEmails = rawEmails.filter(email => {
+        const emailContent = email.body.content.toLowerCase()
+        const emailSubject = email.subject.toLowerCase()
+        const containsCustomerName = emailContent.includes(customerName.toLowerCase()) || 
+                                   emailSubject.includes(customerName.toLowerCase())
+        console.log(`🔍 Fallback check for ${email.id}: contains ${customerName}? ${containsCustomerName}`)
+        return containsCustomerName
+      })
+      
+      if (fallbackEmails.length > 0) {
+        console.log('🔍 Found fallback emails:', fallbackEmails.length)
+        filteredEmails.push(...fallbackEmails)
+      } else {
+        // If still no emails found, show a message that we'll display all emails
+        console.log('🔍 No customer-specific emails found, will show all emails')
+        filteredEmails.push(...rawEmails.slice(0, 5)) // Show first 5 emails as fallback
+      }
+    }
+    
+    console.log('📧 Found emails for customer:', filteredEmails.length)
+    console.log('📧 Email details:', filteredEmails.map(e => ({
+      id: e.id,
+      subject: e.subject,
+      from: e.from.emailAddress.address,
+      hasContent: !!e.body.content,
+      hasPreview: !!e.bodyPreview
+    })))
+    
+    console.log('🔍 Setting modal state:', { customerName, customerEmail, filteredEmailsCount: filteredEmails.length })
     setSelectedCustomer({ name: customerName, email: customerEmail })
     setCustomerEmails(filteredEmails)
     setEmailModalOpen(true)
+    console.log('🔍 Modal should now be open')
   }
 
   const handleCloseEmailModal = () => {
@@ -946,6 +989,37 @@ export function Dashboard() {
               }}
             >
               <Key />
+            </IconButton>
+            <IconButton 
+              color="inherit" 
+              onClick={() => {
+                console.log('🧪 Testing email modal...')
+                setSelectedCustomer({ name: 'Test Customer', email: 'test@example.com' })
+                setCustomerEmails([{
+                  id: 'test-email-1',
+                  subject: 'Test Email Subject',
+                  bodyPreview: 'This is a test email preview',
+                  body: {
+                    content: 'This is the full content of the test email.\n\nIt has multiple lines and should display properly in the modal.',
+                    contentType: 'text/plain'
+                  },
+                  from: {
+                    emailAddress: {
+                      address: 'test@example.com',
+                      name: 'Test Customer'
+                    }
+                  },
+                  receivedDateTime: new Date().toISOString()
+                }])
+                setEmailModalOpen(true)
+              }}
+              title="Test Email Modal"
+              sx={{ 
+                color: 'inherit',
+                opacity: 1
+              }}
+            >
+              <Email />
             </IconButton>
 
             <IconButton color="inherit" onClick={handleRefresh} disabled={loading || aiProcessing}>

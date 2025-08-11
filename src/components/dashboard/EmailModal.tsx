@@ -30,6 +30,14 @@ interface EmailModalProps {
 }
 
 export function EmailModal({ open, onClose, customerName, customerEmail, emails }: EmailModalProps) {
+  console.log('📧 EmailModal props:', { open, customerName, customerEmail, emailsCount: emails.length })
+  console.log('📧 EmailModal emails:', emails.map(e => ({
+    id: e.id,
+    subject: e.subject,
+    hasContent: !!e.body.content,
+    hasPreview: !!e.bodyPreview
+  })))
+  
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
     return date.toLocaleString('en-US', {
@@ -43,19 +51,44 @@ export function EmailModal({ open, onClose, customerName, customerEmail, emails 
   }
 
   const formatEmailContent = (content: string): string => {
+    console.log('📧 Formatting email content:', { 
+      originalLength: content?.length || 0,
+      hasContent: !!content,
+      preview: content?.substring(0, 100)
+    })
+    
+    if (!content) {
+      console.warn('⚠️ No email content provided to formatEmailContent')
+      return 'No content available'
+    }
+    
     // Strip HTML and clean up the content for better readability
     const cleaned = stripHtmlTags(content)
-    return cleaned
+    const formatted = cleaned
       .replace(/\r\n/g, '\n')
       .replace(/\n{3,}/g, '\n\n') // Reduce multiple line breaks
       .trim()
+    
+    console.log('📧 Formatted content length:', formatted.length)
+    return formatted
   }
 
   // Sort emails by date (newest first)
   const sortedEmails = [...emails].sort((a, b) => 
     new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
   )
+  
+  console.log('📧 Sorted emails count:', sortedEmails.length)
+  console.log('📧 First email details:', sortedEmails[0] ? {
+    id: sortedEmails[0].id,
+    subject: sortedEmails[0].subject,
+    hasContent: !!sortedEmails[0].body.content,
+    hasPreview: !!sortedEmails[0].bodyPreview,
+    contentLength: sortedEmails[0].body.content?.length || 0
+  } : 'No emails')
 
+  console.log('📧 EmailModal render - open:', open, 'emails count:', emails.length)
+  
   return (
     <Dialog
       open={open}
@@ -66,6 +99,12 @@ export function EmailModal({ open, onClose, customerName, customerEmail, emails 
         sx: { 
           maxHeight: '90vh',
           m: 2,
+        }
+      }}
+      sx={{
+        zIndex: 9999,
+        '& .MuiDialog-paper': {
+          zIndex: 9999,
         }
       }}
     >
@@ -86,6 +125,7 @@ export function EmailModal({ open, onClose, customerName, customerEmail, emails 
       </DialogTitle>
 
       <DialogContent sx={{ p: 2 }}>
+        {console.log('📧 Rendering DialogContent with', sortedEmails.length, 'emails')}
         {sortedEmails.length === 0 ? (
           <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
             No emails found for this customer.
