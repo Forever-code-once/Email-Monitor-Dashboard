@@ -20,9 +20,9 @@ export function getGraphClient(msalInstance: PublicClientApplication) {
         return response.accessToken
       } catch (error) {
         console.error('Failed to acquire token silently:', error)
-        // Try to acquire token interactively if silent fails
-        const response = await msalInstance.acquireTokenPopup(loginRequest)
-        return response.accessToken
+        // Try to acquire token interactively using redirect instead of popup
+        await msalInstance.acquireTokenRedirect(loginRequest)
+        throw new Error('Redirecting to login...')
       }
     }
   }
