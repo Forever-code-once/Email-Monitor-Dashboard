@@ -27,6 +27,7 @@ import { loginRequest } from '@/lib/msalConfig'
 import { EmailSenderCard as EmailSenderCardComponent } from './EmailSenderCard'
 import { CustomerCard as CustomerCardComponent } from './CustomerCard'
 import { EmailModal } from './EmailModal'
+import { MapView } from '../map/MapView'
 import { EmailWebSocketClient } from '@/lib/websocket'
 
 export function Dashboard() {
@@ -41,7 +42,7 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [hasActiveAccount, setHasActiveAccount] = useState(false)
-  const [viewMode, setViewMode] = useState<'customers' | 'senders' | 'raw'>('customers')
+  const [viewMode, setViewMode] = useState<'customers' | 'senders' | 'raw' | 'map'>('map')
   const [wsConnected, setWsConnected] = useState(false)
   
   const wsClientRef = useRef<EmailWebSocketClient | null>(null)
@@ -890,6 +891,115 @@ export function Dashboard() {
     setTimeout(() => setError(null), 5000)
   }
 
+  const handleAddSampleData = () => {
+    // Add sample truck data for testing the map view
+    const sampleCustomerCards: CustomerCard[] = [
+      {
+        customer: 'ABC Trucking Company',
+        customerEmail: 'dispatch@abctrucking.com',
+        trucks: [
+          {
+            id: 'truck-1',
+            customer: 'ABC Trucking Company',
+            customerEmail: 'dispatch@abctrucking.com',
+            date: '2024-01-15',
+            city: 'Chicago',
+            state: 'IL',
+            additionalInfo: '53ft dry van available',
+            emailId: 'email-1',
+            emailSubject: 'Truck Available - Chicago',
+            emailDate: new Date('2024-01-15T10:00:00Z'),
+            isChecked: false
+          },
+          {
+            id: 'truck-2',
+            customer: 'ABC Trucking Company',
+            customerEmail: 'dispatch@abctrucking.com',
+            date: '2024-01-15',
+            city: 'Dallas',
+            state: 'TX',
+            additionalInfo: '48ft flatbed available',
+            emailId: 'email-2',
+            emailSubject: 'Truck Available - Dallas',
+            emailDate: new Date('2024-01-15T11:00:00Z'),
+            isChecked: false
+          }
+        ],
+        lastEmailDate: new Date('2024-01-15T11:00:00Z')
+      },
+      {
+        customer: 'XYZ Logistics',
+        customerEmail: 'operations@xyzlogistics.com',
+        trucks: [
+          {
+            id: 'truck-3',
+            customer: 'XYZ Logistics',
+            customerEmail: 'operations@xyzlogistics.com',
+            date: '2024-01-16',
+            city: 'Los Angeles',
+            state: 'CA',
+            additionalInfo: '53ft refrigerated available',
+            emailId: 'email-3',
+            emailSubject: 'Truck Available - Los Angeles',
+            emailDate: new Date('2024-01-16T09:00:00Z'),
+            isChecked: false
+          },
+          {
+            id: 'truck-4',
+            customer: 'XYZ Logistics',
+            customerEmail: 'operations@xyzlogistics.com',
+            date: '2024-01-16',
+            city: 'Phoenix',
+            state: 'AZ',
+            additionalInfo: '48ft dry van available',
+            emailId: 'email-4',
+            emailSubject: 'Truck Available - Phoenix',
+            emailDate: new Date('2024-01-16T10:00:00Z'),
+            isChecked: false
+          }
+        ],
+        lastEmailDate: new Date('2024-01-16T10:00:00Z')
+      },
+      {
+        customer: 'Fast Freight Solutions',
+        customerEmail: 'dispatch@fastfreight.com',
+        trucks: [
+          {
+            id: 'truck-5',
+            customer: 'Fast Freight Solutions',
+            customerEmail: 'dispatch@fastfreight.com',
+            date: '2024-01-17',
+            city: 'New York',
+            state: 'NY',
+            additionalInfo: '53ft dry van available',
+            emailId: 'email-5',
+            emailSubject: 'Truck Available - New York',
+            emailDate: new Date('2024-01-17T08:00:00Z'),
+            isChecked: false
+          },
+          {
+            id: 'truck-6',
+            customer: 'Fast Freight Solutions',
+            customerEmail: 'dispatch@fastfreight.com',
+            date: '2024-01-17',
+            city: 'Miami',
+            state: 'FL',
+            additionalInfo: '48ft flatbed available',
+            emailId: 'email-6',
+            emailSubject: 'Truck Available - Miami',
+            emailDate: new Date('2024-01-17T09:00:00Z'),
+            isChecked: false
+          }
+        ],
+        lastEmailDate: new Date('2024-01-17T09:00:00Z')
+      }
+    ]
+    
+    setCustomerCards(sampleCustomerCards)
+    setError('✅ Sample truck data added for testing. You can now test the map view.')
+    setTimeout(() => setError(null), 5000)
+  }
+
   // Show loading state while authentication is being established
   if (!isAuthenticated || !hasActiveAccount) {
     return (
@@ -923,16 +1033,16 @@ export function Dashboard() {
             <FormControlLabel
               control={
                 <Switch
-                  checked={viewMode === 'customers'}
-                  onChange={(e) => setViewMode(e.target.checked ? 'customers' : 'senders')}
+                  checked={viewMode === 'map'}
+                  onChange={(e) => setViewMode(e.target.checked ? 'map' : 'senders')}
                   size="small"
                 />
               }
               label={
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  {viewMode === 'customers' ? <SmartToy /> : <ViewModule />}
+                  {viewMode === 'map' ? <SmartToy /> : <ViewModule />}
                   <Typography variant="body2">
-                    {viewMode === 'customers' ? 'AI Parsed' : 'Senders'}
+                                          {viewMode === 'map' ? 'Map View' : 'Senders'}
                   </Typography>
                 </Box>
               }
@@ -940,12 +1050,17 @@ export function Dashboard() {
             <Button
               size="small"
               variant="outlined"
-              onClick={() => setViewMode(viewMode === 'customers' ? 'senders' : viewMode === 'senders' ? 'raw' : 'customers')}
+              onClick={() => {
+          const modes: Array<'customers' | 'senders' | 'raw' | 'map'> = ['map', 'customers', 'senders', 'raw']
+          const currentIndex = modes.indexOf(viewMode)
+          const nextIndex = (currentIndex + 1) % modes.length
+          setViewMode(modes[nextIndex])
+        }}
               sx={{ textTransform: 'none' }}
             >
               Switch View
             </Button>
-            {viewMode === 'customers' && customerCards.length > 0 && (
+            {viewMode === 'map' && customerCards.length > 0 && (
               <Button
                 size="small"
                 variant="contained"
@@ -954,6 +1069,17 @@ export function Dashboard() {
                 sx={{ textTransform: 'none' }}
               >
                 🗑️ Clear All Data
+              </Button>
+            )}
+            {viewMode === 'map' && customerCards.length === 0 && (
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                onClick={handleAddSampleData}
+                sx={{ textTransform: 'none' }}
+              >
+                🧪 Add Sample Data
               </Button>
             )}
             <Typography variant="body2">
@@ -1074,21 +1200,35 @@ export function Dashboard() {
           )}
           
           <Box sx={{ mb: 3 }}>
-            <Typography variant="h5" gutterBottom>
-              {viewMode === 'customers' ? 'AI-Parsed Truck Availability' : 
-               viewMode === 'senders' ? 'Live Email Feed Dashboard' : 
-               'Raw Email Feed'}
-            </Typography>
+                    <Typography variant="h5" gutterBottom>
+          {viewMode === 'map' ? 'Truck Availability Map' :
+           viewMode === 'customers' ? 'AI-Parsed Truck Availability' :
+           viewMode === 'senders' ? 'Live Email Feed Dashboard' :
+           'Raw Email Feed'}
+        </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-              {viewMode === 'customers' ? (
+              {viewMode === 'map' ? (
                 <>
-              <Typography variant="body1" color="text.secondary">
-                    {customerCards.length} customers • {totalTrucks} trucks available
-              </Typography>
+                  <Typography variant="body1" color="text.secondary">
+                    {customerCards.length} customers • {totalTrucks} trucks available • Interactive map view
+                  </Typography>
                   {totalCheckedTrucks > 0 && (
-              <Chip 
+                    <Chip 
                       label={`${totalCheckedTrucks} checked`}
-                size="small"
+                      size="small"
+                      color="success"
+                    />
+                  )}
+                </>
+              ) : viewMode === 'customers' ? (
+                <>
+                  <Typography variant="body1" color="text.secondary">
+                    {customerCards.length} customers • {totalTrucks} trucks available
+                  </Typography>
+                  {totalCheckedTrucks > 0 && (
+                    <Chip 
+                      label={`${totalCheckedTrucks} checked`}
+                      size="small"
                       color="success"
                     />
                   )}
@@ -1100,25 +1240,30 @@ export function Dashboard() {
                     {viewMode === 'senders' && ` • ${totalEmails} emails`}
                   </Typography>
                   {viewMode === 'senders' && totalCheckedEmails > 0 && (
-                <Chip
+                    <Chip
                       label={`${totalCheckedEmails} checked`}
-                  size="small"
-                  color="success"
-                />
-              )}
+                      size="small"
+                      color="success"
+                    />
+                  )}
                   {viewMode === 'senders' && totalForwarded > 0 && (
-                <Chip
-                  label={`${totalForwarded} forwarded`}
-                  size="small"
-                  color="secondary"
-                />
+                    <Chip
+                      label={`${totalForwarded} forwarded`}
+                      size="small"
+                      color="secondary"
+                    />
                   )}
                 </>
               )}
             </Box>
           </Box>
 
-          {viewMode === 'customers' ? (
+          {viewMode === 'map' ? (
+            <MapView
+              customerCards={customerCards}
+              onViewEmails={handleViewEmails}
+            />
+          ) : viewMode === 'customers' ? (
             customerCards.length > 0 ? (
               <Grid container spacing={3}>
                 {customerCards.map((customer) => (

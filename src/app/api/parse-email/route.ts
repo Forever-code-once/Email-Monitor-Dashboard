@@ -101,23 +101,23 @@ Return ONLY valid JSON:
   ]
 }
 
-Extract EVERY location as a separate truck entry. If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
+Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this exact format: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": [{"date": "YYYY-MM-DD", "city": "City Name", "state": "ST", "additionalInfo": "optional details"}]}. If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
 
     const openai = getOpenAIClient()
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini", // Better at handling long structured data
       messages: [
-                 {
-           role: "system",
-           content: "You extract ALL truck availability data from emails. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. For forwarded emails, identify the original sender as the customer."
-         },
+        {
+          role: "system",
+          content: "You extract ALL truck availability data from emails. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. For forwarded emails, identify the original sender as the customer. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
+        },
         {
           role: "user",
           content: prompt
         }
       ],
       temperature: 0.1,
-      max_tokens: 1500, // Increased to handle long truck lists
+      max_tokens: 10000, // Increased significantly to handle long truck lists
     })
 
     const content = completion.choices[0]?.message?.content?.trim()
@@ -139,14 +139,74 @@ Extract EVERY location as a separate truck entry. If no truck data found, return
       parsedData = JSON.parse(cleanContent)
     } catch (parseError) {
       console.error('JSON parsing failed:', parseError)
-      console.error('Raw content:', cleanContent)
+      console.error('Raw content length:', cleanContent.length)
+      console.error('Raw content preview:', cleanContent.substring(0, 200) + '...')
       
-      // Fallback: try to extract basic info without JSON
-      return NextResponse.json({
-        customer: from.name || from.address.split('@')[0],
-        customerEmail: from.address,
-        trucks: []
-      })
+      // Try to repair common JSON issues
+      let repairedContent = cleanContent
+      
+      // Remove any trailing commas before closing brackets/braces
+      repairedContent = repairedContent.replace(/,(\s*[}\]])/g, '$1')
+      
+      // Fix unquoted property names
+      repairedContent = repairedContent.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+      
+      // Fix single quotes to double quotes
+      repairedContent = repairedContent.replace(/'/g, '"')
+      
+      // Try to find the last complete object and truncate there
+      const lastBraceIndex = repairedContent.lastIndexOf('}')
+      const lastBracketIndex = repairedContent.lastIndexOf(']')
+      const lastCompleteIndex = Math.max(lastBraceIndex, lastBracketIndex)
+      
+      if (lastCompleteIndex > 0) {
+        // Find the matching opening brace/bracket
+        let depth = 0
+        let startIndex = -1
+        for (let i = lastCompleteIndex; i >= 0; i--) {
+          if (repairedContent[i] === '}' || repairedContent[i] === ']') {
+            depth++
+          } else if (repairedContent[i] === '{' || repairedContent[i] === '[') {
+            depth--
+            if (depth === 0) {
+              startIndex = i
+              break
+            }
+          }
+        }
+        
+        if (startIndex >= 0) {
+          repairedContent = repairedContent.substring(startIndex, lastCompleteIndex + 1)
+        }
+      }
+      
+      try {
+        parsedData = JSON.parse(repairedContent)
+        console.log('✅ JSON repaired successfully')
+      } catch (repairError) {
+        console.error('JSON repair failed:', repairError)
+        
+        // Last resort: try to extract customer info manually
+        const customerMatch = cleanContent.match(/"customer"\s*:\s*"([^"]+)"/)
+        const emailMatch = cleanContent.match(/"customerEmail"\s*:\s*"([^"]+)"/)
+        
+        if (customerMatch || emailMatch) {
+          parsedData = {
+            customer: customerMatch ? customerMatch[1] : (from.name || from.address.split('@')[0]),
+            customerEmail: emailMatch ? emailMatch[1] : from.address,
+            trucks: []
+          }
+          console.log('✅ Extracted customer info manually')
+        } else {
+          // Final fallback
+          parsedData = {
+            customer: from.name || from.address.split('@')[0],
+            customerEmail: from.address,
+            trucks: []
+          }
+          console.log('🔄 Using fallback customer info')
+        }
+      }
     }
     
     // Ensure customerEmail is set - fallback to from address if needed
@@ -154,10 +214,35 @@ Extract EVERY location as a separate truck entry. If no truck data found, return
       parsedData.customerEmail = from.address
     }
 
-    // Ensure trucks array exists
+    // Ensure trucks array exists and is valid
     if (!parsedData.trucks || !Array.isArray(parsedData.trucks)) {
       parsedData.trucks = []
+    } else {
+      // Clean up truck data to ensure it's valid
+      parsedData.trucks = parsedData.trucks.filter((truck: any) => 
+        truck && 
+        typeof truck === 'object' && 
+        truck.city && 
+        truck.state && 
+        truck.date
+      ).map((truck: any) => ({
+        date: truck.date || '',
+        city: truck.city || '',
+        state: truck.state || '',
+        additionalInfo: truck.additionalInfo || ''
+      }))
     }
+
+    // Ensure customer name is set
+    if (!parsedData.customer) {
+      parsedData.customer = from.name || from.address.split('@')[0]
+    }
+
+    console.log('✅ Successfully parsed email data:', {
+      customer: parsedData.customer,
+      email: parsedData.customerEmail,
+      truckCount: parsedData.trucks.length
+    })
 
     return NextResponse.json(parsedData)
   } catch (error) {
