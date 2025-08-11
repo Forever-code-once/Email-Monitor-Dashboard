@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // No experimental settings needed for Next.js 14
+  // Enable transpilation of mapbox-gl
+  transpilePackages: ['mapbox-gl'],
 }
 
 module.exports = nextConfig 

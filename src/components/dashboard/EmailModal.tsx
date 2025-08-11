@@ -125,7 +125,6 @@ export function EmailModal({ open, onClose, customerName, customerEmail, emails 
       </DialogTitle>
 
       <DialogContent sx={{ p: 2 }}>
-        {console.log('📧 Rendering DialogContent with', sortedEmails.length, 'emails')}
         {sortedEmails.length === 0 ? (
           <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
             No emails found for this customer.

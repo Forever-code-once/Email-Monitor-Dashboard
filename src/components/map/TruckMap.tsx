@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
 import {
   Box,
   CircularProgress,
@@ -137,7 +136,7 @@ export function TruckMap({
       const marker = new mapboxgl.Marker(markerElement)
         .setLngLat([pin.longitude, pin.latitude])
         .setPopup(popup)
-        .addTo(map.current)
+        .addTo(map.current!)
 
       // Add click handler
       markerElement.addEventListener('click', () => {
@@ -155,7 +154,7 @@ export function TruckMap({
         bounds.extend([pin.longitude, pin.latitude])
       })
       
-      map.current.fitBounds(bounds, {
+      map.current!.fitBounds(bounds, {
         padding: 50,
         maxZoom: 8
       })

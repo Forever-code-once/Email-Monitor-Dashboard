@@ -5,7 +5,8 @@ import { Box, Alert, Typography } from '@mui/material'
 import { DateNavigation } from './DateNavigation'
 import { TruckMap } from './TruckMap'
 import { TruckDetailCard } from './TruckDetailCard'
-import { MapPin, TruckAvailability } from '@/types/map'
+import { MapPin } from '@/types/map'
+import { TruckAvailability } from '@/types'
 import { geocodeAddress, preCacheCommonCities } from '@/lib/geocoding'
 
 interface MapViewProps {
@@ -59,7 +60,7 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
   }, [customerCards])
 
   // Convert truck data to map pins
-  const createMapPins = useCallback(async (date: Date, range?: { start: Date; end: Date }) => {
+  const createMapPins = useCallback(async (date: Date, range?: { start: Date; end: Date } | null) => {
     console.log('🗺️ createMapPins called with:', { date, range, customerCardsLength: customerCards.length })
     
     if (customerCards.length === 0) {
