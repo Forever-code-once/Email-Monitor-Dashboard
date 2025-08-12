@@ -276,12 +276,6 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
   if (customerCards.length === 0) {
     return (
       <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Alert severity="info" sx={{ mb: 2 }}>
-          No truck data available. Please add sample data or load some emails first.
-        </Alert>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Use the "Add Sample Data" button in the toolbar to test the map view with sample truck locations.
-        </Typography>
         <Typography variant="body2" color="text.secondary">
           The map will display truck availability pins for different cities across the USA.
         </Typography>
