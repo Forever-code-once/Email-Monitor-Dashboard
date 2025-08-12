@@ -3,7 +3,7 @@ module.exports = {
   apps: [
     {
       name: 'nextjs-dashboard',
-      script: './node_modules/next/dist/bin/next',
+      script: 'npm',
       args: 'start',
       cwd: process.cwd(),
       instances: 1,

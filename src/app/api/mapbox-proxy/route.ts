@@ -35,6 +35,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data)
   } catch (error) {
     console.error('Mapbox proxy error:', error)
-    return NextResponse.json({ error: 'Failed to fetch from Mapbox' }, { status: 500 })
+    console.error('Mapbox token status:', {
+      hasSecretToken: !!process.env.MAPBOX_SECRET_TOKEN,
+      hasPublicToken: !!process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
+      secretTokenLength: process.env.MAPBOX_SECRET_TOKEN?.length || 0,
+      publicTokenLength: process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.length || 0
+    })
+    return NextResponse.json({ 
+      error: 'Failed to fetch from Mapbox',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
 } 
