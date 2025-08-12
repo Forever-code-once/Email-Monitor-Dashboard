@@ -17,6 +17,17 @@ interface MapViewProps {
 export function MapView({ customerCards, onViewEmails }: MapViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null)
+  
+  // Debug: Log selected date on initialization
+  useEffect(() => {
+    console.log('🗺️ MapView initialized with selectedDate:', {
+      date: selectedDate,
+      year: selectedDate.getFullYear(),
+      month: selectedDate.getMonth() + 1,
+      day: selectedDate.getDate(),
+      isoString: selectedDate.toISOString()
+    })
+  }, [])
   const [pins, setPins] = useState<MapPin[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedPin, setSelectedPin] = useState<MapPin | null>(null)
@@ -45,14 +56,43 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
       })
     })
     
-    // Filter and validate dates
+    // Filter and validate dates with proper parsing
     const validDates = Array.from(dates)
       .filter(dateStr => {
         if (!dateStr || typeof dateStr !== 'string') return false
-        const date = new Date(dateStr)
-        return !isNaN(date.getTime())
+        
+        // Handle MM/DD format properly
+        if (dateStr.includes('/')) {
+          const parts = dateStr.split('/')
+          if (parts.length === 2) {
+            const month = parseInt(parts[0])
+            const day = parseInt(parts[1])
+            return month >= 1 && month <= 12 && day >= 1 && day <= 31
+          }
+        }
+        
+        // Handle YYYY-MM-DD format
+        if (dateStr.includes('-')) {
+          const date = new Date(dateStr)
+          return !isNaN(date.getTime())
+        }
+        
+        return false
       })
-      .map(dateStr => new Date(dateStr))
+      .map(dateStr => {
+        // Parse dates properly
+        if (dateStr.includes('/')) {
+          // Handle MM/DD format - assume current year
+          const parts = dateStr.split('/')
+          const currentYear = new Date().getFullYear()
+          const month = parseInt(parts[0]) - 1 // month is 0-indexed
+          const day = parseInt(parts[1])
+          return new Date(currentYear, month, day)
+        } else {
+          // Handle YYYY-MM-DD format
+          return new Date(dateStr)
+        }
+      })
       .sort((a, b) => a.getTime() - b.getTime())
     
     console.log('🗺️ Available dates from customer cards:', validDates.map(d => d.toISOString().split('T')[0]))
@@ -166,12 +206,13 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
         return
       }
 
-      // Filter out deleted trucks from localStorage
-      const filteredTrucks = trucksForDate.filter(truck => {
-        try {
-          const storageKey = `truck-state-${truck.city}-${truck.state}`
-          const deletedTrucksData = localStorage.getItem(`${storageKey}-deleted`)
-          const deletedTrucks = deletedTrucksData ? JSON.parse(deletedTrucksData) : []
+               // Filter out deleted trucks from localStorage
+         const filteredTrucks = trucksForDate.filter(truck => {
+           try {
+             // Use simplified storage key (location only)
+             const storageKey = `truck-state-${truck.city}-${truck.state}`
+             const deletedTrucksData = localStorage.getItem(`${storageKey}-deleted`)
+             const deletedTrucks = deletedTrucksData ? JSON.parse(deletedTrucksData) : []
           
           if (!Array.isArray(deletedTrucks)) {
             console.warn('Invalid deleted trucks data, clearing corrupted data')
@@ -179,7 +220,18 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
             return true // Show the truck if data is corrupted
           }
           
-          return !deletedTrucks.includes(truck.id)
+          const isDeleted = deletedTrucks.includes(truck.id)
+          if (isDeleted) {
+            console.log('🗺️ Debug: Truck filtered out as deleted:', {
+              customer: truck.customer,
+              email: truck.customerEmail,
+              city: truck.city,
+              state: truck.state,
+              id: truck.id
+            })
+          }
+          
+          return !isDeleted
         } catch (error) {
           console.error('Error checking deleted trucks:', error)
           return true // Show the truck if there's an error
@@ -188,16 +240,31 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
 
       console.log('🗺️ Filtered trucks after removing deleted:', filteredTrucks.length)
 
-      // Group trucks by location
+      // Group trucks by location only (not by customer email)
       const locationGroups = new Map<string, TruckAvailability[]>()
       
+      console.log('🗺️ Debug: Filtered trucks before grouping:', filteredTrucks.map(t => ({
+        customer: t.customer,
+        email: t.customerEmail,
+        city: t.city,
+        state: t.state,
+        date: t.date
+      })))
+      
       filteredTrucks.forEach(truck => {
+        // Group by location only - all customers at same location will be in one pin
         const key = `${truck.city}, ${truck.state}`.toLowerCase()
         if (!locationGroups.has(key)) {
           locationGroups.set(key, [])
         }
         locationGroups.get(key)!.push(truck)
       })
+      
+      console.log('🗺️ Debug: Location groups created:', Array.from(locationGroups.entries()).map(([key, trucks]) => ({
+        key,
+        customerCount: trucks.length,
+        customers: trucks.map(t => ({ customer: t.customer, email: t.customerEmail }))
+      })))
 
       // Geocode locations and create pins
       const pinPromises = Array.from(locationGroups.entries()).map(async ([locationKey, trucks]) => {
@@ -227,6 +294,14 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
       const pinResults = await Promise.all(pinPromises)
       const validPins = pinResults.filter(pin => pin !== null) as MapPin[]
       
+      console.log('🗺️ Debug: Final pins created:', validPins.map(pin => ({
+        id: pin.id,
+        city: pin.city,
+        state: pin.state,
+        truckCount: pin.truckCount,
+        customers: pin.trucks.map(t => ({ customer: t.customer, email: t.customerEmail }))
+      })))
+      
       setPins(validPins)
                   const dateDisplay = range ? 
               `${isNaN(range.start.getTime()) ? new Date().toISOString().split('T')[0] : range.start.toISOString().split('T')[0]} - ${isNaN(range.end.getTime()) ? new Date().toISOString().split('T')[0] : range.end.toISOString().split('T')[0]}` : 
@@ -246,6 +321,11 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
       const dates = availableDates()
       if (dates.length > 0 && !isNaN(dates[0].getTime())) {
         console.log('🗺️ Initializing with first available date:', dates[0].toISOString().split('T')[0])
+        console.log('🗺️ Date details:', {
+          year: dates[0].getFullYear(),
+          month: dates[0].getMonth() + 1,
+          day: dates[0].getDate()
+        })
         setSelectedDate(dates[0])
         setInitialized(true)
       }

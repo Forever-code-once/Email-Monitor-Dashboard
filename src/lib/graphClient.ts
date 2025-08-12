@@ -34,8 +34,9 @@ export function getGraphClient(msalInstance: PublicClientApplication) {
 
 export async function getEmails(graphClient: Client, top: number = 50) {
   try {
+    // Specifically target emails from the Inbox folder only
     const messages = await graphClient
-      .api('/me/messages')
+      .api('/me/mailFolders/inbox/messages')
       .select('id,subject,bodyPreview,body,from,receivedDateTime')
       .top(top)
       .orderby('receivedDateTime desc')
@@ -43,7 +44,7 @@ export async function getEmails(graphClient: Client, top: number = 50) {
 
     return messages.value
   } catch (error) {
-    console.error('Error fetching emails:', error)
+    console.error('Error fetching emails from inbox:', error)
     throw error
   }
 } 

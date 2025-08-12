@@ -38,6 +38,7 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
   // Load persistent state from localStorage
   useEffect(() => {
     if (open && pin) {
+      // Pin ID is now just "city, state" format
       const storageKey = `truck-state-${pin.city}-${pin.state}`
       
       try {
@@ -82,6 +83,7 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
     if (!pin) return
     
     try {
+      // Pin ID is now just "city, state" format
       const storageKey = `truck-state-${pin.city}-${pin.state}`
       
       // Validate data before saving
@@ -132,26 +134,41 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
   }
 
   const formatDate = (dateString: string) => {
+    console.log('🔍 formatDate called with:', dateString)
     try {
       // Handle different date formats to prevent timezone issues
       let date: Date
       
-      // If it's already a valid date string, use it directly
-      if (dateString.includes('-') || dateString.includes('/')) {
-        // For dates like "8/12" or "2024-08-12", parse carefully
-        if (dateString.includes('/')) {
-          // Handle MM/DD format - assume current year if not specified
-          const parts = dateString.split('/')
-          if (parts.length === 2) {
-            // Add current year if not present
-            const currentYear = new Date().getFullYear()
-            dateString = `${currentYear}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
+      // For dates like "8/12" or "2024-08-12", parse carefully
+      if (dateString.includes('/')) {
+        // Handle MM/DD format - assume current year if not specified
+        const parts = dateString.split('/')
+        if (parts.length === 2) {
+          // Add current year if not present
+          const currentYear = new Date().getFullYear()
+          const month = parseInt(parts[0])
+          const day = parseInt(parts[1])
+          
+          // Validate month and day
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            date = new Date(currentYear, month - 1, day) // month is 0-indexed
+          } else {
+            console.warn('Invalid month/day in date string:', dateString)
+            return dateString
           }
+        } else {
+          console.warn('Unexpected date format:', dateString)
+          return dateString
         }
-        
-        // Create date in local timezone to avoid timezone shifts
+      } else if (dateString.includes('-')) {
+        // Handle YYYY-MM-DD format
         const [year, month, day] = dateString.split('-').map(Number)
-        date = new Date(year, month - 1, day) // month is 0-indexed
+        if (year && month && day) {
+          date = new Date(year, month - 1, day) // month is 0-indexed
+        } else {
+          console.warn('Invalid date format:', dateString)
+          return dateString
+        }
       } else {
         // Fallback to original parsing
         date = new Date(dateString)
@@ -163,29 +180,43 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
         return dateString // Return original string if parsing fails
       }
       
-      return date.toLocaleDateString('en-US', {
+      const formattedDate = date.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       })
+      console.log('🔍 formatDate result:', { input: dateString, output: formattedDate, year: date.getFullYear() })
+      return formattedDate
     } catch (error) {
       console.error('Error formatting date:', error, 'dateString:', dateString)
       return dateString // Return original string if formatting fails
     }
   }
 
-  const getCustomerInfo = () => {
-    if (pin.trucks.length === 0) return null
+  // Group trucks by customer
+  const groupTrucksByCustomer = () => {
+    const customerGroups = new Map<string, TruckAvailability[]>()
     
-    const firstTruck = pin.trucks[0]
-    return {
-      customer: firstTruck.customer || 'Unknown Customer',
-      email: firstTruck.customerEmail || 'No email available'
-    }
+    visibleTrucks.forEach(truck => {
+      const customerKey = `${truck.customer}-${truck.customerEmail}`
+      if (!customerGroups.has(customerKey)) {
+        customerGroups.set(customerKey, [])
+      }
+      customerGroups.get(customerKey)!.push(truck)
+    })
+    
+    return Array.from(customerGroups.entries()).map(([customerKey, trucks]) => {
+      const firstTruck = trucks[0]
+      return {
+        customer: firstTruck.customer,
+        email: firstTruck.customerEmail,
+        trucks: trucks
+      }
+    })
   }
 
-  const customerInfo = getCustomerInfo()
+  const customerGroups = groupTrucksByCustomer()
 
   return (
     <Dialog
@@ -221,25 +252,34 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
       </DialogTitle>
 
       <DialogContent sx={{ pt: 0 }}>
-        <Box sx={{ mb: 3 }}>
-          <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Business sx={{ color: 'primary.main', fontSize: 20 }} />
-              <Typography variant="subtitle1" fontWeight="medium">
-                Customer Information
-              </Typography>
-            </Box>
-            <Typography variant="body1" sx={{ mb: 1 }}>
-              {customerInfo?.customer}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Email sx={{ color: 'text.secondary', fontSize: 16 }} />
-              <Typography variant="body2" color="text.secondary">
-                {customerInfo?.email}
-              </Typography>
-            </Box>
-          </Paper>
-        </Box>
+                 <Box sx={{ mb: 3 }}>
+           <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+               <Business sx={{ color: 'primary.main', fontSize: 20 }} />
+               <Typography variant="subtitle1" fontWeight="medium">
+                 Customer Information
+               </Typography>
+             </Box>
+             {customerGroups.length > 0 && (
+               <Box>
+                 <Typography variant="body1" sx={{ mb: 1 }}>
+                   {customerGroups[0].customer}
+                 </Typography>
+                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                   <Email sx={{ color: 'text.secondary', fontSize: 16 }} />
+                   <Typography variant="body2" color="text.secondary">
+                     {customerGroups[0].email}
+                   </Typography>
+                 </Box>
+                 {customerGroups.length > 1 && (
+                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                     + {customerGroups.length - 1} more customer{customerGroups.length > 2 ? 's' : ''}
+                   </Typography>
+                 )}
+               </Box>
+             )}
+           </Paper>
+         </Box>
 
         <Box sx={{ mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -256,57 +296,87 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
           />
         </Box>
 
-        <List sx={{ bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
-          {visibleTrucks.map((truck, index) => (
-            <Box key={truck.id}>
-              <ListItem sx={{ py: 2 }}>
-                <ListItemIcon>
-                  <Checkbox
-                    edge="start"
-                    checked={checkedTrucks.has(truck.id)}
-                    onChange={(e) => handleCheckboxChange(truck.id, e.target.checked)}
-                    color="primary"
-                  />
-                </ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <LocalShipping sx={{ color: 'primary.main', fontSize: 18 }} />
-                      <Typography variant="subtitle2" fontWeight="medium">
-                        Truck {index + 1}
-                      </Typography>
-                    </Box>
-                  }
-                  secondary={
-                    <Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        <strong>Location:</strong> {truck.city}, {truck.state}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        <strong>Date:</strong> {formatDate(truck.date)}
-                      </Typography>
-                      {truck.additionalInfo && (
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Additional Info:</strong> {truck.additionalInfo}
-                        </Typography>
-                      )}
-                    </Box>
-                  }
-                />
-                <IconButton
-                  edge="end"
-                  onClick={() => handleDeleteTruck(truck.id)}
-                  color="error"
-                  size="small"
-                  sx={{ ml: 1 }}
-                >
-                  <Delete />
-                </IconButton>
-              </ListItem>
-              {index < visibleTrucks.length - 1 && <Divider />}
-            </Box>
-          ))}
-        </List>
+                 <List sx={{ bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+           {customerGroups.map((customerGroup, customerIndex) => (
+             <Box key={`${customerGroup.customer}-${customerGroup.email}`}>
+               {/* Customer Header */}
+               <ListItem sx={{ py: 1, bgcolor: 'grey.50' }}>
+                 <ListItemText
+                   primary={
+                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                       <Business sx={{ color: 'primary.main', fontSize: 16 }} />
+                       <Typography variant="subtitle2" fontWeight="medium">
+                         {customerGroup.customer}
+                       </Typography>
+                     </Box>
+                   }
+                   secondary={
+                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                       <Email sx={{ color: 'text.secondary', fontSize: 14 }} />
+                       <Typography variant="body2" color="text.secondary">
+                         {customerGroup.email}
+                       </Typography>
+                     </Box>
+                   }
+                 />
+               </ListItem>
+               
+               {/* Customer's Trucks */}
+               {customerGroup.trucks.map((truck, truckIndex) => (
+                 <Box key={truck.id}>
+                   <ListItem sx={{ py: 2, pl: 4 }}>
+                     <ListItemIcon>
+                       <Checkbox
+                         edge="start"
+                         checked={checkedTrucks.has(truck.id)}
+                         onChange={(e) => handleCheckboxChange(truck.id, e.target.checked)}
+                         color="primary"
+                       />
+                     </ListItemIcon>
+                     <ListItemText
+                       primary={
+                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                           <LocalShipping sx={{ color: 'primary.main', fontSize: 18 }} />
+                           <Typography variant="subtitle2" fontWeight="medium">
+                             Truck {truckIndex + 1}
+                           </Typography>
+                         </Box>
+                       }
+                       secondary={
+                         <Box>
+                           <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                             <strong>Location:</strong> {truck.city}, {truck.state}
+                           </Typography>
+                           <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                             <strong>Date:</strong> {formatDate(truck.date)}
+                           </Typography>
+                           {truck.additionalInfo && (
+                             <Typography variant="body2" color="text.secondary">
+                               <strong>Additional Info:</strong> {truck.additionalInfo}
+                             </Typography>
+                           )}
+                         </Box>
+                       }
+                     />
+                     <IconButton
+                       edge="end"
+                       onClick={() => handleDeleteTruck(truck.id)}
+                       color="error"
+                       size="small"
+                       sx={{ ml: 1 }}
+                     >
+                       <Delete />
+                     </IconButton>
+                   </ListItem>
+                   {truckIndex < customerGroup.trucks.length - 1 && <Divider sx={{ ml: 4 }} />}
+                 </Box>
+               ))}
+               
+               {/* Divider between customers */}
+               {customerIndex < customerGroups.length - 1 && <Divider />}
+             </Box>
+           ))}
+         </List>
       </DialogContent>
 
       <DialogActions sx={{ p: 2, pt: 0 }}>
@@ -338,18 +408,18 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
         <Button onClick={onClose} variant="outlined">
           Close
         </Button>
-        <Button 
-          variant="contained" 
-          onClick={() => {
-            if (customerInfo?.email) {
-              // You can implement email viewing functionality here
-              console.log('View emails for:', customerInfo.email)
-            }
-          }}
-          disabled={!customerInfo?.email}
-        >
-          View Emails
-        </Button>
+                 <Button 
+           variant="contained" 
+           onClick={() => {
+             if (customerGroups.length > 0) {
+               // You can implement email viewing functionality here
+               console.log('View emails for:', customerGroups[0].email)
+             }
+           }}
+           disabled={customerGroups.length === 0}
+         >
+           View Emails
+         </Button>
       </DialogActions>
     </Dialog>
   )

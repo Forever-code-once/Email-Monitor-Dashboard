@@ -251,11 +251,20 @@ export function Dashboard() {
         
         const promises = batch.map(async (email) => {
           try {
+            console.log('🤖 Processing email:', {
+              from: email.from?.emailAddress?.address,
+              subject: email.subject,
+              id: email.id
+            })
+            
             const parsedDataArray = await parseEmailWithAI(email)
             // parseEmailWithAI now returns an array
             if (parsedDataArray && Array.isArray(parsedDataArray) && parsedDataArray.length > 0) {
+              console.log('✅ AI processed successfully:', parsedDataArray.map(p => ({ customer: p.customer, email: p.customerEmail, trucks: p.trucks?.length || 0 })))
               // Return each customer as a separate result
               return parsedDataArray.map(parsedData => ({ email, parsedData }))
+            } else {
+              console.log('❌ AI processing returned no data for email:', email.from?.emailAddress?.address)
             }
           } catch (error) {
             console.error(`Error parsing email ${email.id}:`, error)
@@ -551,7 +560,12 @@ export function Dashboard() {
       const graphClient = getGraphClient(instance as any)
       const emails: EmailMessage[] = await getEmails(graphClient, 50) // Reduced for faster initial load
       
-      console.log('Fetched emails:', emails.length)
+      console.log('📧 Fetched emails:', emails.length)
+      console.log('📧 Email details:', emails.map(email => ({
+        from: email.from?.emailAddress?.address,
+        subject: email.subject,
+        receivedDateTime: email.receivedDateTime
+      })))
       setRawEmails(emails)
 
       // Convert emails to sender cards
@@ -560,7 +574,7 @@ export function Dashboard() {
 
       if (emails.length > 0) {
         const forwardedCount = emails.filter(email => isForwardedEmail(email.body.content)).length
-        setError(`✅ Successfully fetched ${emails.length} emails from ${senderCards.length} senders! (${forwardedCount} forwarded)`)
+        setError(`✅ Successfully fetched ${emails.length} emails from Inbox (${senderCards.length} senders)! (${forwardedCount} forwarded)`)
         
         // Show UI immediately, then process AI in background
         setLoading(false)
@@ -570,10 +584,10 @@ export function Dashboard() {
           console.error('Background AI processing failed:', err)
           setError('⚠️ Some emails could not be processed for truck data.')
         })
-      } else {
-        setError('No emails found in the mailbox.')
-        setLoading(false)
-      }
+             } else {
+         setError('No emails found in the Inbox.')
+         setLoading(false)
+       }
 
       setLastRefresh(new Date())
     } catch (err) {
@@ -912,12 +926,12 @@ export function Dashboard() {
       )}
 
       {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress size={60} />
-          <Typography variant="h6" sx={{ ml: 2 }}>
-            Fetching emails...
-          </Typography>
-        </Box>
+                 <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+           <CircularProgress size={60} />
+           <Typography variant="h6" sx={{ ml: 2 }}>
+             Fetching emails from Inbox...
+           </Typography>
+         </Box>
       ) : (
         <>
           {aiProcessing && (

@@ -33,8 +33,28 @@ export async function POST(request: NextRequest) {
   try {
     const { subject, body, from } = await request.json()
 
-    // Truncate email body to prevent token limit issues
-    const truncatedBody = truncateEmailContent(body)
+              console.log('📧 Processing email from:', from.name, from.address)
+     console.log('📧 Subject:', subject)
+     console.log('📧 Email body preview:', body.substring(0, 200) + '...')
+
+     // Strip HTML tags and decode HTML entities
+     const stripHtml = (html: string) => {
+       return html
+         .replace(/<[^>]*>/g, ' ') // Remove HTML tags
+         .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
+         .replace(/&amp;/g, '&') // Replace &amp; with &
+         .replace(/&lt;/g, '<') // Replace &lt; with <
+         .replace(/&gt;/g, '>') // Replace &gt; with >
+         .replace(/&quot;/g, '"') // Replace &quot; with "
+         .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+         .trim()
+     }
+     
+     const cleanBody = stripHtml(body)
+     console.log('📧 Cleaned email body preview:', cleanBody.substring(0, 200) + '...')
+     
+     // Truncate email body to prevent token limit issues
+     const truncatedBody = truncateEmailContent(cleanBody)
 
          const prompt = `Extract truck availability from this email. Look for ALL truck locations mentioned in the email.
 
@@ -43,23 +63,52 @@ Subject: ${subject}
 From: ${from.name} <${from.address}>
 Body: ${truncatedBody}
 
+IMPORTANT CUSTOMER INFORMATION:
+- CRITICAL: Use EMAIL ADDRESS as the primary identifier for customers, not just names
+- Same name can send trucks from different email addresses, so email address is the unique identifier
+- EXAMPLE: "John Grathwohl <jgrathwohl@outlook.com>" and "John Grathwohl <jgrathwohl@conardtransportation.com>" are DIFFERENT customers
+         - For DIRECT emails (like this one), use the email sender: "${from.name}" (${from.address})
+         - For FORWARDED emails, look for the ORIGINAL sender in the email body using patterns like "From:", "Original From:", "Sent by:", "Original sender:", etc.
+         - The customer should be the person/company who originally sent the truck availability information
+         - CRITICAL: The customerEmail MUST match the actual sender's email address: "${from.address}"
+
 Instructions:
-1. If forwarded, find the ORIGINAL sender (customer) in the forwarding chain
-2. Extract ALL dates and locations for truck availability mentioned in the email
-3. Look for patterns like:
+1. Extract ALL dates and locations for truck availability mentioned in the email
+2. Look for patterns like:
+   - SIMPLE FORMAT: Just a date and location (e.g., "08/12/2025" and "San Diego, CA")
    - TABLE FORMAT: "Available Date | Type | City | State | Preferred Destination"
    - DATE COLUMNS: "8/1-8/2", "08/04/2025", "08/07/2025" etc.
    - LOCATION COLUMNS: City and State in separate columns
    - City, State format like "Midland, TX" or "Nashville, TN" ... etc.
    - Multiple locations listed under each date
    - Bullet points or line items with locations
+3. For SIMPLE FORMAT emails (just date + location), extract as a single truck entry
 4. For TABLE FORMAT emails, extract each row as a separate truck entry
 5. For LONG TABLES (20+ rows), process ALL rows systematically - do not truncate or summarize
 6. Each truck entry should be a unique city/state combination for that date
 7. Clean up company names (remove Inc/LLC/Dispatch/etc)
 8. IMPORTANT: Create separate entries for each location, even if they're on the same date
+9. IMPORTANT: Do NOT create duplicate entries for the same date/location combination
 
 Example input formats:
+
+SIMPLE FORMAT:
+"08/12/2025
+San Diego, CA"
+
+FORWARDED EMAIL FORMAT:
+"From: Original Company <original@company.com>
+Sent: Monday, August 12, 2025 10:00 AM
+To: dispatcher@logistics.com
+Subject: Available Truck
+
+08/12/2025
+San Diego, CA"
+
+MULTIPLE FORWARDERS EXAMPLE:
+"From: John Grathwohl <jgrathwohl@outlook.com> - Customer 1 (personal email)
+From: John Grathwohl <jgrathwohl@conardtransportation.com> - Customer 2 (company email)
+From: John Smith <john@company3.com> - Customer 3 (different person, different company)"
 
 LIST FORMAT:
 "Monday 7/28
@@ -77,26 +126,14 @@ Both should extract as separate truck entries for each location with their respe
 
 Return ONLY valid JSON:
 {
-  "customer": "DAGG",
-  "customerEmail": "dispatchcw@dagetttruck.com", 
+  "customer": "Original Sender Name",
+  "customerEmail": "original@email.com", 
   "trucks": [
     {
-      "date": "8/1-8/2",
-      "city": "Olney",
-      "state": "IL",
-      "additionalInfo": "53R to MN"
-    },
-    {
-      "date": "8/4", 
-      "city": "Mechanicsville",
-      "state": "VA",
-      "additionalInfo": "53R to MN"
-    },
-    {
-      "date": "8/7",
-      "city": "Fort Mill", 
-      "state": "SC",
-      "additionalInfo": "53R to MN"
+      "date": "8/12",
+      "city": "San Diego",
+      "state": "CA",
+      "additionalInfo": ""
     }
   ]
 }
@@ -107,10 +144,10 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini", // Better at handling long structured data
       messages: [
-        {
-          role: "system",
-          content: "You extract ALL truck availability data from emails. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. For forwarded emails, identify the original sender as the customer. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
-        },
+                 {
+           role: "system",
+           content: "You extract ALL truck availability data from emails. Handle simple formats (just date + location), table formats, and list formats. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. CRITICAL: Use EMAIL ADDRESS as the primary customer identifier since same names can send from different email addresses. EXAMPLE: 'John Grathwohl <jgrathwohl@outlook.com>' and 'John Grathwohl <jgrathwohl@conardtransportation.com>' are DIFFERENT customers. For direct emails, use the sender's name and email. For forwarded emails, look for original sender in email body. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
+         },
         {
           role: "user",
           content: prompt
@@ -124,6 +161,10 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
     if (!content) {
       throw new Error('No response from OpenAI')
     }
+    
+         console.log('🤖 AI Response:', content)
+     console.log('🤖 Expected customer:', from.name, 'Expected email:', from.address)
+     console.log('🤖 Email type check - Is this a forwarded email?', truncatedBody.includes('From:') || truncatedBody.includes('Sent:') || truncatedBody.includes('Original'))
 
     // Clean up the response - remove any markdown formatting
     let cleanContent = content
@@ -209,28 +250,45 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       }
     }
     
-    // Ensure customerEmail is set - fallback to from address if needed
-    if (!parsedData.customerEmail) {
-      parsedData.customerEmail = from.address
-    }
+                   // Use AI-extracted customer info if available, otherwise fall back to email sender
+     if (!parsedData.customer || !parsedData.customerEmail) {
+       parsedData.customer = from.name || from.address.split('@')[0]
+       parsedData.customerEmail = from.address
+     }
+     
+     // CRITICAL: Always ensure the customerEmail matches the actual sender
+     parsedData.customerEmail = from.address
+    
+    console.log('✅ Final customer info:', parsedData.customer, parsedData.customerEmail)
 
     // Ensure trucks array exists and is valid
     if (!parsedData.trucks || !Array.isArray(parsedData.trucks)) {
       parsedData.trucks = []
     } else {
-      // Clean up truck data to ensure it's valid
-      parsedData.trucks = parsedData.trucks.filter((truck: any) => 
+           // Clean up truck data to ensure it's valid and remove duplicates
+     const uniqueTrucks = new Map<string, any>()
+     
+           parsedData.trucks.filter((truck: any) => 
         truck && 
         typeof truck === 'object' && 
         truck.city && 
         truck.state && 
         truck.date
-      ).map((truck: any) => ({
-        date: truck.date || '',
-        city: truck.city || '',
-        state: truck.state || '',
-        additionalInfo: truck.additionalInfo || ''
-      }))
+      ).forEach((truck: any) => {
+        // Use email address as part of the unique key to separate customers with same names
+        const customerEmail = parsedData.customerEmail || from.address
+        const key = `${customerEmail}-${truck.date}-${truck.city}-${truck.state}`
+        if (!uniqueTrucks.has(key)) {
+          uniqueTrucks.set(key, {
+            date: truck.date || '',
+            city: truck.city || '',
+            state: truck.state || '',
+            additionalInfo: truck.additionalInfo || ''
+          })
+        }
+      })
+     
+     parsedData.trucks = Array.from(uniqueTrucks.values())
     }
 
     // Ensure customer name is set
