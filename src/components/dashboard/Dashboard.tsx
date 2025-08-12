@@ -610,64 +610,6 @@ export function Dashboard() {
     }
   }
 
-  const handleManualCheck = () => {
-    if (wsClientRef.current) {
-      wsClientRef.current.send({
-        type: 'FORCE_CHECK',
-        data: {}
-      })
-      setError('🔍 Manually checking for new emails...')
-    }
-  }
-
-  const handleTestEmail = () => {
-    console.log('🧪 Test email requested')
-    console.log('wsClientRef.current:', !!wsClientRef.current)
-    
-    if (!wsClientRef.current) {
-      console.log('🔌 Creating WebSocket connection for test...')
-      const wsClient = new EmailWebSocketClient('ws://localhost:8080')
-      wsClientRef.current = wsClient
-      
-      wsClient.on('connection', (data) => {
-        console.log('✅ Test connection successful:', data)
-        setWsConnected(true)
-        // Send test email after connection
-        setTimeout(() => {
-          wsClient.send({
-            type: 'TEST_EMAIL',
-            data: {}
-          })
-          setError('🧪 Processing test email...')
-        }, 1000)
-      })
-      
-      wsClient.on('error', (error) => {
-        console.error('❌ Test connection error:', error)
-        setError(`❌ Test connection failed: ${error.message}`)
-      })
-      
-      wsClient.connect()
-      setError('🔌 Connecting for test email...')
-      return
-    }
-    
-    const connectionStatus = wsClientRef.current.getConnectionStatus()
-    console.log('🔍 Test connection status:', connectionStatus)
-    
-    if (wsClientRef.current && connectionStatus.connected) {
-      console.log('🧪 Sending test email message...')
-      wsClientRef.current.send({
-        type: 'TEST_EMAIL',
-        data: {}
-      })
-      setError('🧪 Processing test email...')
-    } else {
-      console.error('❌ WebSocket not connected for test')
-      setError('❌ WebSocket not connected for test')
-    }
-  }
-
   const handleSendToken = async () => {
     console.log('🔑 Manual token send requested')
     console.log('wsClientRef.current:', !!wsClientRef.current)
@@ -882,124 +824,6 @@ export function Dashboard() {
     setCustomerEmails([])
   }
 
-  const handleClearSampleData = () => {
-    // Clear all data to remove any simulated content
-    setCustomerCards([])
-    setEmailSenderCards([])
-    setRawEmails([])
-    setError('✅ All data cleared. Refresh to load only real email data.')
-    setTimeout(() => setError(null), 5000)
-  }
-
-  const handleAddSampleData = () => {
-    // Add sample truck data for testing the map view
-    const sampleCustomerCards: CustomerCard[] = [
-      {
-        customer: 'ABC Trucking Company',
-        customerEmail: 'dispatch@abctrucking.com',
-        trucks: [
-          {
-            id: 'truck-1',
-            customer: 'ABC Trucking Company',
-            customerEmail: 'dispatch@abctrucking.com',
-            date: '2024-01-15',
-            city: 'Chicago',
-            state: 'IL',
-            additionalInfo: '53ft dry van available',
-            emailId: 'email-1',
-            emailSubject: 'Truck Available - Chicago',
-            emailDate: new Date('2024-01-15T10:00:00Z'),
-            isChecked: false
-          },
-          {
-            id: 'truck-2',
-            customer: 'ABC Trucking Company',
-            customerEmail: 'dispatch@abctrucking.com',
-            date: '2024-01-15',
-            city: 'Dallas',
-            state: 'TX',
-            additionalInfo: '48ft flatbed available',
-            emailId: 'email-2',
-            emailSubject: 'Truck Available - Dallas',
-            emailDate: new Date('2024-01-15T11:00:00Z'),
-            isChecked: false
-          }
-        ],
-        lastEmailDate: new Date('2024-01-15T11:00:00Z')
-      },
-      {
-        customer: 'XYZ Logistics',
-        customerEmail: 'operations@xyzlogistics.com',
-        trucks: [
-          {
-            id: 'truck-3',
-            customer: 'XYZ Logistics',
-            customerEmail: 'operations@xyzlogistics.com',
-            date: '2024-01-16',
-            city: 'Los Angeles',
-            state: 'CA',
-            additionalInfo: '53ft refrigerated available',
-            emailId: 'email-3',
-            emailSubject: 'Truck Available - Los Angeles',
-            emailDate: new Date('2024-01-16T09:00:00Z'),
-            isChecked: false
-          },
-          {
-            id: 'truck-4',
-            customer: 'XYZ Logistics',
-            customerEmail: 'operations@xyzlogistics.com',
-            date: '2024-01-16',
-            city: 'Phoenix',
-            state: 'AZ',
-            additionalInfo: '48ft dry van available',
-            emailId: 'email-4',
-            emailSubject: 'Truck Available - Phoenix',
-            emailDate: new Date('2024-01-16T10:00:00Z'),
-            isChecked: false
-          }
-        ],
-        lastEmailDate: new Date('2024-01-16T10:00:00Z')
-      },
-      {
-        customer: 'Fast Freight Solutions',
-        customerEmail: 'dispatch@fastfreight.com',
-        trucks: [
-          {
-            id: 'truck-5',
-            customer: 'Fast Freight Solutions',
-            customerEmail: 'dispatch@fastfreight.com',
-            date: '2024-01-17',
-            city: 'New York',
-            state: 'NY',
-            additionalInfo: '53ft dry van available',
-            emailId: 'email-5',
-            emailSubject: 'Truck Available - New York',
-            emailDate: new Date('2024-01-17T08:00:00Z'),
-            isChecked: false
-          },
-          {
-            id: 'truck-6',
-            customer: 'Fast Freight Solutions',
-            customerEmail: 'dispatch@fastfreight.com',
-            date: '2024-01-17',
-            city: 'Miami',
-            state: 'FL',
-            additionalInfo: '48ft flatbed available',
-            emailId: 'email-6',
-            emailSubject: 'Truck Available - Miami',
-            emailDate: new Date('2024-01-17T09:00:00Z'),
-            isChecked: false
-          }
-        ],
-        lastEmailDate: new Date('2024-01-17T09:00:00Z')
-      }
-    ]
-    
-    setCustomerCards(sampleCustomerCards)
-    setError('✅ Sample truck data added for testing. You can now test the map view.')
-    setTimeout(() => setError(null), 5000)
-  }
-
   // Show loading state while authentication is being established
   if (!isAuthenticated || !hasActiveAccount) {
     return (
@@ -1030,58 +854,6 @@ export function Dashboard() {
             Email Monitor Dashboard
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={viewMode === 'map'}
-                  onChange={(e) => setViewMode(e.target.checked ? 'map' : 'senders')}
-                  size="small"
-                />
-              }
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  {viewMode === 'map' ? <SmartToy /> : <ViewModule />}
-                  <Typography variant="body2">
-                                          {viewMode === 'map' ? 'Map View' : 'Senders'}
-                  </Typography>
-                </Box>
-              }
-            />
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => {
-          const modes: Array<'customers' | 'senders' | 'raw' | 'map'> = ['map', 'customers', 'senders', 'raw']
-          const currentIndex = modes.indexOf(viewMode)
-          const nextIndex = (currentIndex + 1) % modes.length
-          setViewMode(modes[nextIndex])
-        }}
-              sx={{ textTransform: 'none' }}
-            >
-              Switch View
-            </Button>
-            {viewMode === 'map' && customerCards.length > 0 && (
-              <Button
-                size="small"
-                variant="contained"
-                color="error"
-                onClick={handleClearSampleData}
-                sx={{ textTransform: 'none' }}
-              >
-                🗑️ Clear All Data
-              </Button>
-            )}
-            {viewMode === 'map' && customerCards.length === 0 && (
-              <Button
-                size="small"
-                variant="contained"
-                color="primary"
-                onClick={handleAddSampleData}
-                sx={{ textTransform: 'none' }}
-              >
-                🧪 Add Sample Data
-              </Button>
-            )}
             <Typography variant="body2">
               Last updated: {lastRefresh.toLocaleTimeString()}
             </Typography>
@@ -1115,41 +887,6 @@ export function Dashboard() {
               }}
             >
               <Key />
-            </IconButton>
-            <IconButton 
-              color="inherit" 
-              onClick={() => {
-                console.log('🧪 Testing email modal...')
-                setSelectedCustomer({ name: 'Test Customer', email: 'test@example.com' })
-                setCustomerEmails([{
-                  id: 'test-email-1',
-                  subject: 'Test Email Subject',
-                  bodyPreview: 'This is a test email preview',
-                  body: {
-                    content: 'This is the full content of the test email.\n\nIt has multiple lines and should display properly in the modal.',
-                    contentType: 'text/plain'
-                  },
-                  from: {
-                    emailAddress: {
-                      address: 'test@example.com',
-                      name: 'Test Customer'
-                    }
-                  },
-                  receivedDateTime: new Date().toISOString()
-                }])
-                setEmailModalOpen(true)
-              }}
-              title="Test Email Modal"
-              sx={{ 
-                color: 'inherit',
-                opacity: 1
-              }}
-            >
-              <Email />
-            </IconButton>
-
-            <IconButton color="inherit" onClick={handleRefresh} disabled={loading || aiProcessing}>
-              <Refresh />
             </IconButton>
             <IconButton color="inherit" onClick={handleLogout}>
               <Logout />
@@ -1200,12 +937,6 @@ export function Dashboard() {
           )}
           
           <Box sx={{ mb: 3 }}>
-                    <Typography variant="h5" gutterBottom>
-          {viewMode === 'map' ? 'Truck Availability Map' :
-           viewMode === 'customers' ? 'AI-Parsed Truck Availability' :
-           viewMode === 'senders' ? 'Live Email Feed Dashboard' :
-           'Raw Email Feed'}
-        </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
               {viewMode === 'map' ? (
                 <>
