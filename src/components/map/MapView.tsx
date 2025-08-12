@@ -105,28 +105,54 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
       
       if (range) {
         // Filter trucks for the date range
-        const startStr = isNaN(range.start.getTime()) ? new Date().toISOString().split('T')[0] : range.start.toISOString().split('T')[0]
-        const endStr = isNaN(range.end.getTime()) ? new Date().toISOString().split('T')[0] : range.end.toISOString().split('T')[0]
+        // Convert range dates to MM/DD format for comparison
+        const startMonth = (range.start.getMonth() + 1).toString()
+        const startDay = range.start.getDate().toString()
+        const startStr = `${startMonth}/${startDay}`
+        
+        const endMonth = (range.end.getMonth() + 1).toString()
+        const endDay = range.end.getDate().toString()
+        const endStr = `${endMonth}/${endDay}`
         
         console.log('🗺️ Filtering for date range:', startStr, 'to', endStr)
         
         customerCards.forEach(card => {
           card.trucks.forEach((truck: TruckAvailability) => {
-            const truckDate = truck.date
-            if (truckDate >= startStr && truckDate <= endStr) {
+            let truckDateStr = truck.date
+            
+            // If truck date is in YYYY-MM-DD format, convert to MM/DD
+            if (truckDateStr.includes('-') && truckDateStr.length > 5) {
+              const [year, month, day] = truckDateStr.split('-')
+              truckDateStr = `${parseInt(month)}/${parseInt(day)}`
+            }
+            
+            // Simple string comparison for MM/DD format
+            if (truckDateStr >= startStr && truckDateStr <= endStr) {
               trucksForDate.push(truck)
             }
           })
         })
       } else {
         // Filter trucks for the selected date
-        const dateStr = isNaN(date.getTime()) ? new Date().toISOString().split('T')[0] : date.toISOString().split('T')[0] // YYYY-MM-DD format
+        // Convert selected date to MM/DD format to match truck dates
+        const month = (date.getMonth() + 1).toString() // getMonth() is 0-indexed
+        const day = date.getDate().toString()
+        const dateStr = `${month}/${day}` // MM/DD format
         
         console.log('🗺️ Filtering for single date:', dateStr)
         
         customerCards.forEach(card => {
           card.trucks.forEach((truck: TruckAvailability) => {
-            if (truck.date === dateStr) {
+            // Handle different date formats in truck data
+            let truckDateStr = truck.date
+            
+            // If truck date is in YYYY-MM-DD format, convert to MM/DD
+            if (truckDateStr.includes('-') && truckDateStr.length > 5) {
+              const [year, month, day] = truckDateStr.split('-')
+              truckDateStr = `${parseInt(month)}/${parseInt(day)}`
+            }
+            
+            if (truckDateStr === dateStr) {
               trucksForDate.push(truck)
             }
           })
@@ -142,9 +168,22 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
 
       // Filter out deleted trucks from localStorage
       const filteredTrucks = trucksForDate.filter(truck => {
-        const storageKey = `truck-state-${truck.city}-${truck.state}`
-        const deletedTrucks = JSON.parse(localStorage.getItem(`${storageKey}-deleted`) || '[]')
-        return !deletedTrucks.includes(truck.id)
+        try {
+          const storageKey = `truck-state-${truck.city}-${truck.state}`
+          const deletedTrucksData = localStorage.getItem(`${storageKey}-deleted`)
+          const deletedTrucks = deletedTrucksData ? JSON.parse(deletedTrucksData) : []
+          
+          if (!Array.isArray(deletedTrucks)) {
+            console.warn('Invalid deleted trucks data, clearing corrupted data')
+            localStorage.removeItem(`${storageKey}-deleted`)
+            return true // Show the truck if data is corrupted
+          }
+          
+          return !deletedTrucks.includes(truck.id)
+        } catch (error) {
+          console.error('Error checking deleted trucks:', error)
+          return true // Show the truck if there's an error
+        }
       })
 
       console.log('🗺️ Filtered trucks after removing deleted:', filteredTrucks.length)
@@ -176,8 +215,8 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
             state: trucks[0].state,
             trucks: trucks,
             date: range ? 
-              `${isNaN(range.start.getTime()) ? new Date().toISOString().split('T')[0] : range.start.toISOString().split('T')[0]} - ${isNaN(range.end.getTime()) ? new Date().toISOString().split('T')[0] : range.end.toISOString().split('T')[0]}` : 
-              (isNaN(date.getTime()) ? new Date().toISOString().split('T')[0] : date.toISOString().split('T')[0]),
+              `${range.start.getMonth() + 1}/${range.start.getDate()} - ${range.end.getMonth() + 1}/${range.end.getDate()}` : 
+              `${date.getMonth() + 1}/${date.getDate()}`,
             truckCount: trucks.length
           } as MapPin
         }

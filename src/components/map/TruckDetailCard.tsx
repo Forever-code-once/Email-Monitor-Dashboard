@@ -40,16 +40,40 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
     if (open && pin) {
       const storageKey = `truck-state-${pin.city}-${pin.state}`
       
-      // Load deleted trucks from localStorage
-      const deletedTrucks = JSON.parse(localStorage.getItem(`${storageKey}-deleted`) || '[]')
-      const filteredTrucks = pin.trucks.filter(truck => 
-        !deletedTrucks.includes(truck.id)
-      )
-      setVisibleTrucks(filteredTrucks)
+      try {
+        // Load deleted trucks from localStorage with error handling
+        const deletedTrucksData = localStorage.getItem(`${storageKey}-deleted`)
+        const deletedTrucks = deletedTrucksData ? JSON.parse(deletedTrucksData) : []
+        
+        if (!Array.isArray(deletedTrucks)) {
+          console.warn('Invalid deleted trucks data, resetting to empty array')
+          localStorage.removeItem(`${storageKey}-deleted`)
+        }
+        
+        const filteredTrucks = pin.trucks.filter(truck => 
+          !deletedTrucks.includes(truck.id)
+        )
+        setVisibleTrucks(filteredTrucks)
 
-      // Load checked trucks from localStorage
-      const checked = JSON.parse(localStorage.getItem(`${storageKey}-checked`) || '[]')
-      setCheckedTrucks(new Set(checked))
+        // Load checked trucks from localStorage with error handling
+        const checkedData = localStorage.getItem(`${storageKey}-checked`)
+        const checked = checkedData ? JSON.parse(checkedData) : []
+        
+        if (!Array.isArray(checked)) {
+          console.warn('Invalid checked trucks data, resetting to empty array')
+          localStorage.removeItem(`${storageKey}-checked`)
+          setCheckedTrucks(new Set())
+        } else {
+          setCheckedTrucks(new Set(checked))
+        }
+      } catch (error) {
+        console.error('Error loading localStorage data:', error)
+        // Clear corrupted data
+        localStorage.removeItem(`${storageKey}-deleted`)
+        localStorage.removeItem(`${storageKey}-checked`)
+        setVisibleTrucks(pin.trucks)
+        setCheckedTrucks(new Set())
+      }
     }
   }, [open, pin])
 
@@ -57,9 +81,20 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
   const saveState = (deletedIds: string[], checkedIds: string[]) => {
     if (!pin) return
     
-    const storageKey = `truck-state-${pin.city}-${pin.state}`
-    localStorage.setItem(`${storageKey}-deleted`, JSON.stringify(deletedIds))
-    localStorage.setItem(`${storageKey}-checked`, JSON.stringify(checkedIds))
+    try {
+      const storageKey = `truck-state-${pin.city}-${pin.state}`
+      
+      // Validate data before saving
+      if (!Array.isArray(deletedIds) || !Array.isArray(checkedIds)) {
+        console.error('Invalid data for localStorage, skipping save')
+        return
+      }
+      
+      localStorage.setItem(`${storageKey}-deleted`, JSON.stringify(deletedIds))
+      localStorage.setItem(`${storageKey}-checked`, JSON.stringify(checkedIds))
+    } catch (error) {
+      console.error('Error saving to localStorage:', error)
+    }
   }
 
   const handleCheckboxChange = (truckId: string, checked: boolean) => {
@@ -97,13 +132,47 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
+    try {
+      // Handle different date formats to prevent timezone issues
+      let date: Date
+      
+      // If it's already a valid date string, use it directly
+      if (dateString.includes('-') || dateString.includes('/')) {
+        // For dates like "8/12" or "2024-08-12", parse carefully
+        if (dateString.includes('/')) {
+          // Handle MM/DD format - assume current year if not specified
+          const parts = dateString.split('/')
+          if (parts.length === 2) {
+            // Add current year if not present
+            const currentYear = new Date().getFullYear()
+            dateString = `${currentYear}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
+          }
+        }
+        
+        // Create date in local timezone to avoid timezone shifts
+        const [year, month, day] = dateString.split('-').map(Number)
+        date = new Date(year, month - 1, day) // month is 0-indexed
+      } else {
+        // Fallback to original parsing
+        date = new Date(dateString)
+      }
+      
+      // Validate the date
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date string:', dateString)
+        return dateString // Return original string if parsing fails
+      }
+      
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    } catch (error) {
+      console.error('Error formatting date:', error, 'dateString:', dateString)
+      return dateString // Return original string if formatting fails
+    }
   }
 
   const getCustomerInfo = () => {

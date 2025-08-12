@@ -87,13 +87,13 @@ Return ONLY valid JSON:
       "additionalInfo": "53R to MN"
     },
     {
-      "date": "08/04/2025", 
+      "date": "8/4", 
       "city": "Mechanicsville",
       "state": "VA",
       "additionalInfo": "53R to MN"
     },
     {
-      "date": "08/07/2025",
+      "date": "8/7",
       "city": "Fort Mill", 
       "state": "SC",
       "additionalInfo": "53R to MN"
@@ -101,7 +101,7 @@ Return ONLY valid JSON:
   ]
 }
 
-Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this exact format: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": [{"date": "YYYY-MM-DD", "city": "City Name", "state": "ST", "additionalInfo": "optional details"}]}. If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
+Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this exact format: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": [{"date": "MM/DD", "city": "City Name", "state": "ST", "additionalInfo": "optional details"}]}. IMPORTANT: Use MM/DD format for dates (e.g., "8/12" not "2024-08-12") to match the original email format. If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
 
     const openai = getOpenAIClient()
     const completion = await openai.chat.completions.create({
