@@ -28,6 +28,7 @@ export interface TruckDetailCardProps {
   pin: MapPin
   onClose: () => void
   open: boolean
+  onTruckDeleted?: () => void
 }
 
 export interface GeocodingResult {

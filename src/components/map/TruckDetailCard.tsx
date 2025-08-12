@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -15,6 +16,8 @@ import {
   Divider,
   IconButton,
   Paper,
+  Checkbox,
+  ListItemIcon,
 } from '@mui/material'
 import {
   Close,
@@ -23,10 +26,76 @@ import {
   CalendarToday,
   Email,
   Business,
+  Delete,
 } from '@mui/icons-material'
 import { TruckDetailCardProps } from '@/types/map'
+import { TruckAvailability } from '@/types'
 
-export function TruckDetailCard({ pin, onClose, open }: TruckDetailCardProps) {
+export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDetailCardProps) {
+  const [visibleTrucks, setVisibleTrucks] = useState<TruckAvailability[]>([])
+  const [checkedTrucks, setCheckedTrucks] = useState<Set<string>>(new Set())
+
+  // Load persistent state from localStorage
+  useEffect(() => {
+    if (open && pin) {
+      const storageKey = `truck-state-${pin.city}-${pin.state}`
+      
+      // Load deleted trucks from localStorage
+      const deletedTrucks = JSON.parse(localStorage.getItem(`${storageKey}-deleted`) || '[]')
+      const filteredTrucks = pin.trucks.filter(truck => 
+        !deletedTrucks.includes(truck.id)
+      )
+      setVisibleTrucks(filteredTrucks)
+
+      // Load checked trucks from localStorage
+      const checked = JSON.parse(localStorage.getItem(`${storageKey}-checked`) || '[]')
+      setCheckedTrucks(new Set(checked))
+    }
+  }, [open, pin])
+
+  // Save state to localStorage
+  const saveState = (deletedIds: string[], checkedIds: string[]) => {
+    if (!pin) return
+    
+    const storageKey = `truck-state-${pin.city}-${pin.state}`
+    localStorage.setItem(`${storageKey}-deleted`, JSON.stringify(deletedIds))
+    localStorage.setItem(`${storageKey}-checked`, JSON.stringify(checkedIds))
+  }
+
+  const handleCheckboxChange = (truckId: string, checked: boolean) => {
+    const newChecked = new Set(checkedTrucks)
+    if (checked) {
+      newChecked.add(truckId)
+    } else {
+      newChecked.delete(truckId)
+    }
+    setCheckedTrucks(newChecked)
+    
+    // Save to localStorage
+    const deletedTrucks = JSON.parse(localStorage.getItem(`truck-state-${pin.city}-${pin.state}-deleted`) || '[]')
+    saveState(deletedTrucks, Array.from(newChecked))
+  }
+
+  const handleDeleteTruck = (truckId: string) => {
+    // Remove from visible trucks
+    setVisibleTrucks(prev => prev.filter(truck => truck.id !== truckId))
+    
+    // Remove from checked trucks
+    const newChecked = new Set(checkedTrucks)
+    newChecked.delete(truckId)
+    setCheckedTrucks(newChecked)
+    
+    // Save to localStorage
+    const deletedTrucks = JSON.parse(localStorage.getItem(`truck-state-${pin.city}-${pin.state}-deleted`) || '[]')
+    const newDeleted = [...deletedTrucks, truckId]
+    saveState(newDeleted, Array.from(newChecked))
+    
+    // Notify parent component to refresh map
+    if (onTruckDeleted) {
+      onTruckDeleted()
+    }
+  }
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', {
@@ -77,7 +146,7 @@ export function TruckDetailCard({ pin, onClose, open }: TruckDetailCardProps) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
           <LocalShipping sx={{ color: 'text.secondary', fontSize: 20 }} />
           <Typography variant="body2" color="text.secondary">
-            {pin.truckCount} truck{pin.truckCount !== 1 ? 's' : ''} available
+            {visibleTrucks.length} truck{visibleTrucks.length !== 1 ? 's' : ''} available
           </Typography>
         </Box>
       </DialogTitle>
@@ -119,9 +188,17 @@ export function TruckDetailCard({ pin, onClose, open }: TruckDetailCardProps) {
         </Box>
 
         <List sx={{ bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
-          {pin.trucks.map((truck, index) => (
-            <Box key={index}>
+          {visibleTrucks.map((truck, index) => (
+            <Box key={truck.id}>
               <ListItem sx={{ py: 2 }}>
+                <ListItemIcon>
+                  <Checkbox
+                    edge="start"
+                    checked={checkedTrucks.has(truck.id)}
+                    onChange={(e) => handleCheckboxChange(truck.id, e.target.checked)}
+                    color="primary"
+                  />
+                </ListItemIcon>
                 <ListItemText
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -147,14 +224,48 @@ export function TruckDetailCard({ pin, onClose, open }: TruckDetailCardProps) {
                     </Box>
                   }
                 />
+                <IconButton
+                  edge="end"
+                  onClick={() => handleDeleteTruck(truck.id)}
+                  color="error"
+                  size="small"
+                  sx={{ ml: 1 }}
+                >
+                  <Delete />
+                </IconButton>
               </ListItem>
-              {index < pin.trucks.length - 1 && <Divider />}
+              {index < visibleTrucks.length - 1 && <Divider />}
             </Box>
           ))}
         </List>
       </DialogContent>
 
       <DialogActions sx={{ p: 2, pt: 0 }}>
+        <Button 
+          onClick={() => {
+            setCheckedTrucks(new Set())
+            saveState([], [])
+          }} 
+          variant="outlined"
+          size="small"
+        >
+          Clear All Checkboxes
+        </Button>
+        <Button 
+          onClick={() => {
+            // Restore all deleted trucks
+            const storageKey = `truck-state-${pin.city}-${pin.state}`
+            localStorage.removeItem(`${storageKey}-deleted`)
+            setVisibleTrucks(pin.trucks)
+            if (onTruckDeleted) {
+              onTruckDeleted()
+            }
+          }} 
+          variant="outlined"
+          size="small"
+        >
+          Restore Deleted
+        </Button>
         <Button onClick={onClose} variant="outlined">
           Close
         </Button>

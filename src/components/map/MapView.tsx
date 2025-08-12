@@ -140,10 +140,19 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
         return
       }
 
+      // Filter out deleted trucks from localStorage
+      const filteredTrucks = trucksForDate.filter(truck => {
+        const storageKey = `truck-state-${truck.city}-${truck.state}`
+        const deletedTrucks = JSON.parse(localStorage.getItem(`${storageKey}-deleted`) || '[]')
+        return !deletedTrucks.includes(truck.id)
+      })
+
+      console.log('🗺️ Filtered trucks after removing deleted:', filteredTrucks.length)
+
       // Group trucks by location
       const locationGroups = new Map<string, TruckAvailability[]>()
       
-      trucksForDate.forEach(truck => {
+      filteredTrucks.forEach(truck => {
         const key = `${truck.city}, ${truck.state}`.toLowerCase()
         if (!locationGroups.has(key)) {
           locationGroups.set(key, [])
@@ -255,6 +264,13 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
     setSelectedPin(null)
   }
 
+  const handleTruckDeleted = () => {
+    // Refresh the map pins to reflect the deletion
+    if (initialized && !isNaN(selectedDate.getTime())) {
+      createMapPins(selectedDate, dateRange)
+    }
+  }
+
   const dates = availableDates()
 
   if (customerCards.length === 0) {
@@ -291,13 +307,14 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
         loading={loading}
       />
       
-      {selectedPin && (
-        <TruckDetailCard
-          pin={selectedPin}
-          onClose={handleCloseDetailCard}
-          open={detailCardOpen}
-        />
-      )}
+             {selectedPin && (
+         <TruckDetailCard
+           pin={selectedPin}
+           onClose={handleCloseDetailCard}
+           open={detailCardOpen}
+           onTruckDeleted={handleTruckDeleted}
+         />
+       )}
     </Box>
   )
 } 
