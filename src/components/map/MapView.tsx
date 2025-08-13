@@ -189,35 +189,57 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
           })
           
           card.trucks.forEach((truck: TruckAvailability) => {
-            // Handle different date formats in truck data
-            let truckDateStr = truck.date
-            
-            // If truck date is in YYYY-MM-DD format, convert to MM/DD
-            if (truckDateStr.includes('-') && truckDateStr.length > 5) {
-              const [year, month, day] = truckDateStr.split('-')
-              truckDateStr = `${parseInt(month)}/${parseInt(day)}`
-            }
-            
-            console.log('🗺️ Checking truck:', {
-              date: truckDateStr,
-              city: truck.city,
-              state: truck.state,
-              matches: truckDateStr === dateStr
-            })
-            
-            if (truckDateStr === dateStr) {
-              trucksForDate.push(truck)
-            }
+                         // Handle different date formats in truck data
+             let truckDateStr = truck.date
+             
+             // If truck date is in YYYY-MM-DD format, convert to MM/DD
+             if (truckDateStr.includes('-') && truckDateStr.length > 5) {
+               const [year, month, day] = truckDateStr.split('-')
+               truckDateStr = `${parseInt(month)}/${parseInt(day)}`
+             }
+             
+             // Normalize date format to remove leading zeros for comparison
+             const normalizeDate = (dateStr: string) => {
+               if (dateStr.includes('/')) {
+                 const [month, day] = dateStr.split('/')
+                 return `${parseInt(month)}/${parseInt(day)}`
+               }
+               return dateStr
+             }
+             
+             const normalizedTruckDate = normalizeDate(truckDateStr)
+             const normalizedTargetDate = normalizeDate(dateStr)
+             
+             console.log('🗺️ Checking truck:', {
+               originalDate: truckDateStr,
+               normalizedTruckDate,
+               normalizedTargetDate,
+               city: truck.city,
+               state: truck.state,
+               matches: normalizedTruckDate === normalizedTargetDate
+             })
+             
+             if (normalizedTruckDate === normalizedTargetDate) {
+               trucksForDate.push(truck)
+             }
           })
         })
       }
 
-      console.log('🗺️ Found trucks for date/range:', trucksForDate.length)
+             console.log('🗺️ Found trucks for date/range:', trucksForDate.length)
+       console.log('🗺️ All trucks found:', trucksForDate.map(t => ({
+         customer: t.customer,
+         email: t.customerEmail,
+         date: t.date,
+         city: t.city,
+         state: t.state
+       })))
 
-      if (trucksForDate.length === 0) {
-        setPins([])
-        return
-      }
+       if (trucksForDate.length === 0) {
+         console.log('🗺️ No trucks found for date, setting empty pins')
+         setPins([])
+         return
+       }
 
                // Filter out deleted trucks from localStorage
          const filteredTrucks = trucksForDate.filter(truck => {

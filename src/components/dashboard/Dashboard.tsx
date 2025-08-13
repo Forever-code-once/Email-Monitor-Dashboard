@@ -368,6 +368,14 @@ export function Dashboard() {
       const totalTrucks = finalCustomerCardsArray.reduce((sum, card) => sum + card.trucks.length, 0)
       console.log(`AI Processing completed: ${finalCustomerCardsArray.length} customers, ${totalTrucks} trucks from ${successCount}/${processedCount} emails`)
       
+      // Debug: Log all customer cards created
+      console.log('🔍 Final customer cards created:', finalCustomerCardsArray.map(card => ({
+        customer: card.customer,
+        email: card.customerEmail,
+        truckCount: card.trucks.length,
+        trucks: card.trucks.map(t => ({ city: t.city, state: t.state, date: t.date }))
+      })))
+      
       // Update success message
       if (successCount > 0) {
         setError(`✅ AI processed ${successCount}/${processedCount} emails successfully! Found ${totalTrucks} trucks from ${finalCustomerCardsArray.length} customers.`)
