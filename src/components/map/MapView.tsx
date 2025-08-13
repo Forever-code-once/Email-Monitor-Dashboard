@@ -182,6 +182,12 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
         console.log('🗺️ Filtering for single date:', dateStr)
         
         customerCards.forEach(card => {
+          console.log('🗺️ Checking customer card:', {
+            customer: card.customer,
+            email: card.customerEmail,
+            truckCount: card.trucks.length
+          })
+          
           card.trucks.forEach((truck: TruckAvailability) => {
             // Handle different date formats in truck data
             let truckDateStr = truck.date
@@ -191,6 +197,13 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
               const [year, month, day] = truckDateStr.split('-')
               truckDateStr = `${parseInt(month)}/${parseInt(day)}`
             }
+            
+            console.log('🗺️ Checking truck:', {
+              date: truckDateStr,
+              city: truck.city,
+              state: truck.state,
+              matches: truckDateStr === dateStr
+            })
             
             if (truckDateStr === dateStr) {
               trucksForDate.push(truck)
