@@ -88,13 +88,24 @@ Instructions:
 6. Each truck entry should be a unique city/state combination for that date
 7. Clean up company names (remove Inc/LLC/Dispatch/etc)
 8. IMPORTANT: Create separate entries for each location, even if they're on the same date
-9. IMPORTANT: Do NOT create duplicate entries for the same date/location combination
+         9. IMPORTANT: Do NOT create duplicate entries for the same date/location combination
+         10. CRITICAL: If the same truck information appears multiple times in the email, extract it only ONCE
+         11. CRITICAL: Each unique truck should appear only once in the results
+         12. CRITICAL: If multiple identical lines appear (like "Virginia Beach, VA" repeated 3 times), each line represents a separate truck - extract each one
+         13. CRITICAL: Multiple identical locations in the email = Multiple trucks at that location
 
 Example input formats:
 
-SIMPLE FORMAT:
-"08/12/2025
-San Diego, CA"
+ SIMPLE FORMAT:
+ "08/12/2025
+ San Diego, CA"
+
+ MULTIPLE TRUCKS SAME LOCATION:
+ "8/12/2025
+ Virginia Beach, VA
+ Virginia Beach, VA
+ Virginia Beach, VA"
+ (This should extract as 3 separate trucks at Virginia Beach, VA)
 
 FORWARDED EMAIL FORMAT:
 "From: Original Company <original@company.com>
@@ -146,7 +157,7 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       messages: [
                  {
            role: "system",
-           content: "You extract ALL truck availability data from emails. Handle simple formats (just date + location), table formats, and list formats. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. CRITICAL: Use EMAIL ADDRESS as the primary customer identifier since same names can send from different email addresses. EXAMPLE: 'John Grathwohl <jgrathwohl@outlook.com>' and 'John Grathwohl <jgrathwohl@conardtransportation.com>' are DIFFERENT customers. For direct emails, use the sender's name and email. For forwarded emails, look for original sender in email body. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
+                       content: "You extract ALL truck availability data from emails. Handle simple formats (just date + location), table formats, and list formats. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. CRITICAL: Use EMAIL ADDRESS as the primary customer identifier since same names can send from different email addresses. EXAMPLE: 'John Grathwohl <jgrathwohl@outlook.com>' and 'John Grathwohl <jgrathwohl@conardtransportation.com>' are DIFFERENT customers. For direct emails, use the sender's name and email. For forwarded emails, look for original sender in email body. CRITICAL: Do NOT create duplicate entries - each unique truck should appear only once. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
          },
         {
           role: "user",
@@ -265,27 +276,26 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
     if (!parsedData.trucks || !Array.isArray(parsedData.trucks)) {
       parsedData.trucks = []
     } else {
-           // Clean up truck data to ensure it's valid and remove duplicates
+           // Clean up truck data to ensure it's valid and remove true duplicates
      const uniqueTrucks = new Map<string, any>()
      
-           parsedData.trucks.filter((truck: any) => 
+           // Simply add all trucks - let the AI handle the extraction correctly
+      parsedData.trucks.filter((truck: any) => 
         truck && 
         typeof truck === 'object' && 
         truck.city && 
         truck.state && 
         truck.date
-      ).forEach((truck: any) => {
-        // Use email address as part of the unique key to separate customers with same names
-        const customerEmail = parsedData.customerEmail || from.address
-        const key = `${customerEmail}-${truck.date}-${truck.city}-${truck.state}`
-        if (!uniqueTrucks.has(key)) {
-          uniqueTrucks.set(key, {
-            date: truck.date || '',
-            city: truck.city || '',
-            state: truck.state || '',
-            additionalInfo: truck.additionalInfo || ''
-          })
-        }
+      ).forEach((truck: any, index: number) => {
+        // Create a unique key for each truck entry
+        const key = `${parsedData.customerEmail}-${truck.date}-${truck.city}-${truck.state}-${index}`
+        
+        uniqueTrucks.set(key, {
+          date: truck.date || '',
+          city: truck.city || '',
+          state: truck.state || '',
+          additionalInfo: truck.additionalInfo || ''
+        })
       })
      
      parsedData.trucks = Array.from(uniqueTrucks.values())
@@ -296,11 +306,17 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       parsedData.customer = from.name || from.address.split('@')[0]
     }
 
-    console.log('✅ Successfully parsed email data:', {
-      customer: parsedData.customer,
-      email: parsedData.customerEmail,
-      truckCount: parsedData.trucks.length
-    })
+         console.log('✅ Successfully parsed email data:', {
+       customer: parsedData.customer,
+       email: parsedData.customerEmail,
+       truckCount: parsedData.trucks.length,
+       trucks: parsedData.trucks.map((t: any) => ({
+         date: t.date,
+         city: t.city,
+         state: t.state,
+         additionalInfo: t.additionalInfo
+       }))
+     })
 
     return NextResponse.json(parsedData)
   } catch (error) {

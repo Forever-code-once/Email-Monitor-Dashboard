@@ -194,7 +194,7 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
     }
   }
 
-  // Group trucks by customer
+  // Group trucks by customer and remove duplicates
   const groupTrucksByCustomer = () => {
     const customerGroups = new Map<string, TruckAvailability[]>()
     
@@ -208,10 +208,22 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
     
     return Array.from(customerGroups.entries()).map(([customerKey, trucks]) => {
       const firstTruck = trucks[0]
+      
+      // Remove duplicate trucks within the same customer
+      const uniqueTrucks = trucks.filter((truck, index, self) => {
+        // Find the first occurrence of this truck ID
+        const firstIndex = self.findIndex(t => t.id === truck.id)
+        
+        // Keep only the first occurrence
+        return index === firstIndex
+      })
+      
+      console.log(`🔍 Customer ${firstTruck.customer}: ${trucks.length} trucks -> ${uniqueTrucks.length} unique trucks`)
+      
       return {
         customer: firstTruck.customer,
         email: firstTruck.customerEmail,
-        trucks: trucks
+        trucks: uniqueTrucks
       }
     })
   }
@@ -243,12 +255,12 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
             <Close />
           </IconButton>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-          <LocalShipping sx={{ color: 'text.secondary', fontSize: 20 }} />
-          <Typography variant="body2" color="text.secondary">
-            {visibleTrucks.length} truck{visibleTrucks.length !== 1 ? 's' : ''} available
-          </Typography>
-        </Box>
+                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+           <LocalShipping sx={{ color: 'text.secondary', fontSize: 20 }} />
+           <Typography variant="body2" color="text.secondary">
+             {customerGroups.reduce((total, group) => total + group.trucks.length, 0)} truck{customerGroups.reduce((total, group) => total + group.trucks.length, 0) !== 1 ? 's' : ''} available
+           </Typography>
+         </Box>
       </DialogTitle>
 
       <DialogContent sx={{ pt: 0 }}>
