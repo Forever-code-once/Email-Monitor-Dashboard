@@ -31,7 +31,7 @@ import {
 import { TruckDetailCardProps } from '@/types/map'
 import { TruckAvailability } from '@/types'
 
-export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDetailCardProps) {
+export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmails }: TruckDetailCardProps) {
   const [visibleTrucks, setVisibleTrucks] = useState<TruckAvailability[]>([])
   const [checkedTrucks, setCheckedTrucks] = useState<Set<string>>(new Set())
 
@@ -229,6 +229,15 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
   }
 
   const customerGroups = groupTrucksByCustomer()
+  
+  // Debug: Log customer groups and onViewEmails
+  console.log('🔍 TruckDetailCard debug:', {
+    visibleTrucks: visibleTrucks.length,
+    customerGroups: customerGroups.length,
+    customerGroupsDetails: customerGroups.map(g => ({ customer: g.customer, email: g.email, trucks: g.trucks.length })),
+    onViewEmails: !!onViewEmails,
+    buttonDisabled: customerGroups.length === 0 || !onViewEmails
+  })
 
   return (
     <Dialog
@@ -423,12 +432,13 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted }: TruckDet
                  <Button 
            variant="contained" 
            onClick={() => {
-             if (customerGroups.length > 0) {
-               // You can implement email viewing functionality here
-               console.log('View emails for:', customerGroups[0].email)
+             if (customerGroups.length > 0 && onViewEmails) {
+               console.log('🔍 View Emails button clicked for:', customerGroups[0].email)
+               onViewEmails(customerGroups[0].email)
              }
            }}
-           disabled={customerGroups.length === 0}
+           disabled={customerGroups.length === 0 || !onViewEmails}
+           title={`customerGroups: ${customerGroups.length}, onViewEmails: ${!!onViewEmails}`}
          >
            View Emails
          </Button>

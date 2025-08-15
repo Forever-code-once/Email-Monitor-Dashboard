@@ -29,6 +29,7 @@ export interface TruckDetailCardProps {
   onClose: () => void
   open: boolean
   onTruckDeleted?: () => void
+  onViewEmails?: (customerEmail: string) => void
 }
 
 export interface GeocodingResult {

@@ -461,6 +461,7 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
            onClose={handleCloseDetailCard}
            open={detailCardOpen}
            onTruckDeleted={handleTruckDeleted}
+           onViewEmails={onViewEmails}
          />
        )}
     </Box>
