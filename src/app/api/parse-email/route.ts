@@ -153,7 +153,7 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
 
     const openai = getOpenAIClient()
     const completion = await openai.chat.completions.create({
-      model: "gpt-5", // Upgraded to GPT-5 for better accuracy and performance
+      model: "gpt-4o-mini", // Upgraded to GPT-5 for better accuracy and performance
       messages: [
                  {
            role: "system",
