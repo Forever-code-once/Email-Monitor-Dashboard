@@ -67,10 +67,13 @@ IMPORTANT CUSTOMER INFORMATION:
 - CRITICAL: Use EMAIL ADDRESS as the primary identifier for customers, not just names
 - Same name can send trucks from different email addresses, so email address is the unique identifier
 - EXAMPLE: "John Grathwohl <jgrathwohl@outlook.com>" and "John Grathwohl <jgrathwohl@conardtransportation.com>" are DIFFERENT customers
-         - For DIRECT emails (like this one), use the email sender: "${from.name}" (${from.address})
-         - For FORWARDED emails, look for the ORIGINAL sender in the email body using patterns like "From:", "Original From:", "Sent by:", "Original sender:", etc.
-         - The customer should be the person/company who originally sent the truck availability information
-         - CRITICAL: The customerEmail MUST match the actual sender's email address: "${from.address}"
+- ALWAYS look for the ORIGINAL sender in the email body using patterns like "From:", "Original From:", "Sent by:", "Original sender:", etc.
+- The customer should be the person/company who originally sent the truck availability information
+- CRITICAL: Extract the customerEmail from the "From:" line in the email body
+- If no "From:" line found, use the actual sender's email address: "${from.address}"
+- IMPORTANT: If the email contains contact information (like "Melissa Vaughn, Conard Logistics"), but the email is from "MX LOGISTICS <dispatch@mxlogistics.com>", then "MX LOGISTICS" is the customer, not the contact person
+- The customer is the company/person sending the email, not necessarily the contact person mentioned in the email body
+- CRITICAL: ALWAYS extract the original sender from the email body as the customer
 
 Instructions:
 1. Extract ALL dates and locations for truck availability mentioned in the email
@@ -155,10 +158,10 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini", // Upgraded to GPT-5 for better accuracy and performance
       messages: [
-                 {
-           role: "system",
-                       content: "You extract ALL truck availability data from emails. Handle simple formats (just date + location), table formats, and list formats. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. CRITICAL: Use EMAIL ADDRESS as the primary customer identifier since same names can send from different email addresses. EXAMPLE: 'John Grathwohl <jgrathwohl@outlook.com>' and 'John Grathwohl <jgrathwohl@conardtransportation.com>' are DIFFERENT customers. For direct emails, use the sender's name and email. For forwarded emails, look for original sender in email body. CRITICAL: Do NOT create duplicate entries - each unique truck should appear only once. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
-         },
+                                   {
+            role: "system",
+                        content: "You extract ALL truck availability data from emails. Handle simple formats (just date + location), table formats, and list formats. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. CRITICAL: Use EMAIL ADDRESS as the primary customer identifier since same names can send from different email addresses. EXAMPLE: 'John Grathwohl <jgrathwohl@outlook.com>' and 'John Grathwohl <jgrathwohl@conardtransportation.com>' are DIFFERENT customers. ALWAYS look for the original sender in the email body using patterns like 'From:', 'Original From:', 'Sent by:', 'Original sender:', etc. CRITICAL: Do NOT create duplicate entries - each unique truck should appear only once. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
+          },
         {
           role: "user",
           content: prompt
@@ -267,10 +270,16 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
        parsedData.customerEmail = from.address
      }
      
-     // CRITICAL: Always ensure the customerEmail matches the actual sender
-     parsedData.customerEmail = from.address
+     // IMPORTANT: Always preserve the AI-extracted customer information
+     // The AI should have extracted the original sender from the email body
+     // Only set customerEmail if the AI didn't extract it
+     if (!parsedData.customerEmail) {
+       parsedData.customerEmail = from.address
+     }
     
-    console.log('✅ Final customer info:', parsedData.customer, parsedData.customerEmail)
+         console.log('✅ Final customer info:', parsedData.customer, parsedData.customerEmail)
+     console.log('✅ Email sender info:', from.name, from.address)
+     console.log('✅ Customer extraction type: AI extracted original sender')
 
     // Ensure trucks array exists and is valid
     if (!parsedData.trucks || !Array.isArray(parsedData.trucks)) {
