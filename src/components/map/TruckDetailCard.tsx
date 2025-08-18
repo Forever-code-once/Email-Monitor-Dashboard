@@ -273,34 +273,6 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
       </DialogTitle>
 
       <DialogContent sx={{ pt: 0 }}>
-                 <Box sx={{ mb: 3 }}>
-           <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-               <Business sx={{ color: 'primary.main', fontSize: 20 }} />
-               <Typography variant="subtitle1" fontWeight="medium">
-                 Customer Information
-               </Typography>
-             </Box>
-             {customerGroups.length > 0 && (
-               <Box>
-                 <Typography variant="body1" sx={{ mb: 1 }}>
-                   {customerGroups[0].customer}
-                 </Typography>
-                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                   <Email sx={{ color: 'text.secondary', fontSize: 16 }} />
-                   <Typography variant="body2" color="text.secondary">
-                     {customerGroups[0].email}
-                   </Typography>
-                 </Box>
-                 {customerGroups.length > 1 && (
-                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                     + {customerGroups.length - 1} more customer{customerGroups.length > 2 ? 's' : ''}
-                   </Typography>
-                 )}
-               </Box>
-             )}
-           </Paper>
-         </Box>
 
         <Box sx={{ mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -359,15 +331,12 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                            <LocalShipping sx={{ color: 'primary.main', fontSize: 18 }} />
                            <Typography variant="subtitle2" fontWeight="medium">
-                             Truck {truckIndex + 1}
+                            {truck.city}, {truck.state}
                            </Typography>
                          </Box>
                        }
                        secondary={
                          <Box>
-                           <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                             <strong>Location:</strong> {truck.city}, {truck.state}
-                           </Typography>
                            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                              <strong>Date:</strong> {formatDate(truck.date)}
                            </Typography>
