@@ -83,7 +83,7 @@ export function Dashboard() {
       // Determine WebSocket URL based on current domain
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const host = window.location.hostname
-      const wsUrl = `${protocol}//${host}:8080`
+      const wsUrl = `${protocol}//${host}/ws`
       
       console.log('🔌 WebSocket URL:', wsUrl)
       const wsClient = new EmailWebSocketClient(wsUrl)
@@ -651,7 +651,7 @@ export function Dashboard() {
       // Determine WebSocket URL based on current domain
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const host = window.location.hostname
-      const wsUrl = `${protocol}//${host}:8080`
+      const wsUrl = `${protocol}//${host}/ws`
       
       console.log('🔌 WebSocket URL:', wsUrl)
       const wsClient = new EmailWebSocketClient(wsUrl)
