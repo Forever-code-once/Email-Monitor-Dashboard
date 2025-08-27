@@ -79,7 +79,14 @@ export function Dashboard() {
     
     if (isAuthenticated && hasActiveAccount) {
       console.log('🔌 Attempting WebSocket connection...')
-      const wsClient = new EmailWebSocketClient('ws://localhost:8080')
+      
+      // Determine WebSocket URL based on current domain
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const host = window.location.hostname
+      const wsUrl = `${protocol}//${host}:8080`
+      
+      console.log('🔌 WebSocket URL:', wsUrl)
+      const wsClient = new EmailWebSocketClient(wsUrl)
       wsClientRef.current = wsClient
 
       // Set up WebSocket event listeners
@@ -640,7 +647,14 @@ export function Dashboard() {
     
     if (!wsClientRef.current) {
       console.log('🔌 Creating new WebSocket connection...')
-      const wsClient = new EmailWebSocketClient('ws://localhost:8080')
+      
+      // Determine WebSocket URL based on current domain
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const host = window.location.hostname
+      const wsUrl = `${protocol}//${host}:8080`
+      
+      console.log('🔌 WebSocket URL:', wsUrl)
+      const wsClient = new EmailWebSocketClient(wsUrl)
       wsClientRef.current = wsClient
       
       // Add connection event listeners for debugging
