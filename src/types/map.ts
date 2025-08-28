@@ -1,4 +1,4 @@
-import { TruckAvailability } from './index'
+import { TruckAvailability, LoadData } from './index'
 
 export interface MapPin {
   id: string
@@ -10,6 +10,17 @@ export interface MapPin {
   date: string
   truckCount: number
 }
+
+export interface LoadMapPin {
+  id: string
+  type: 'load'
+  latitude: number
+  longitude: number
+  title: string
+  data: LoadData
+}
+
+export type AnyMapPin = MapPin | LoadMapPin
 
 export interface MapViewProps {
   customerCards: any[] // Using existing customer cards data

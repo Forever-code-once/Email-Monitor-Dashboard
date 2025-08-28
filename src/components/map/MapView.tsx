@@ -1,13 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Box, Alert, Typography } from '@mui/material'
+import { Box, Alert, Typography, CircularProgress } from '@mui/material'
 import { DateNavigation } from './DateNavigation'
 import { TruckMap } from './TruckMap'
 import { TruckDetailCard } from './TruckDetailCard'
-import { MapPin } from '@/types/map'
-import { TruckAvailability } from '@/types'
+import { LoadDetailCard } from './LoadDetailCard'
+import { MapPin, AnyMapPin } from '@/types/map'
+import { TruckAvailability, LoadData } from '@/types'
 import { geocodeAddress, preCacheCommonCities } from '@/lib/geocoding'
+import { convertLoadsToPins } from '@/lib/loadGeocoding'
 
 interface MapViewProps {
   customerCards: any[] // Using existing customer cards data
@@ -29,8 +31,10 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
     })
   }, [])
   const [pins, setPins] = useState<MapPin[]>([])
+  const [loadPins, setLoadPins] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedPin, setSelectedPin] = useState<MapPin | null>(null)
+  const [loadingLoads, setLoadingLoads] = useState(false)
+  const [selectedPin, setSelectedPin] = useState<AnyMapPin | null>(null)
   const [detailCardOpen, setDetailCardOpen] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
@@ -46,6 +50,36 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
       } : null
     })
   }, [customerCards])
+
+  // Fetch loads from database and create pins
+  const fetchAndCreateLoadPins = useCallback(async () => {
+    setLoadingLoads(true)
+    try {
+      console.log('🗺️ Fetching loads from database...')
+      const response = await fetch('/api/loads')
+      const data = await response.json()
+      
+      if (data.success && data.loads) {
+        console.log(`🗺️ Found ${data.loads.length} loads from database`)
+        const loadPins = await convertLoadsToPins(data.loads)
+        setLoadPins(loadPins)
+        console.log(`🗺️ Created ${loadPins.length} load pins`)
+      } else {
+        console.error('❌ Failed to fetch loads:', data.error)
+        setLoadPins([])
+      }
+    } catch (error) {
+      console.error('❌ Error fetching loads:', error)
+      setLoadPins([])
+    } finally {
+      setLoadingLoads(false)
+    }
+  }, [])
+
+  // Fetch loads on component mount
+  useEffect(() => {
+    fetchAndCreateLoadPins()
+  }, [fetchAndCreateLoadPins])
 
   // Get all available dates from customer cards
   const availableDates = useCallback(() => {
@@ -447,23 +481,41 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
         availableDates={dates}
       />
       
-      <TruckMap
-        selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
-        onPinClick={handlePinClick}
-        pins={pins}
-        loading={loading}
-      />
+              <TruckMap
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          onPinClick={handlePinClick}
+          pins={pins}
+          loadPins={loadPins}
+          loading={loading || loadingLoads}
+        />
       
              {selectedPin && (
-         <TruckDetailCard
-           pin={selectedPin}
-           onClose={handleCloseDetailCard}
-           open={detailCardOpen}
-           onTruckDeleted={handleTruckDeleted}
-           onViewEmails={onViewEmails}
-         />
-       )}
+               <Box
+                 sx={{
+                   position: 'absolute',
+                   top: 20,
+                   right: 20,
+                   zIndex: 1000,
+                   maxWidth: 400,
+                 }}
+               >
+                 {'type' in selectedPin && selectedPin.type === 'load' ? (
+                   <LoadDetailCard
+                     load={selectedPin.data}
+                     onClose={handleCloseDetailCard}
+                   />
+                 ) : (
+                   <TruckDetailCard
+                     pin={selectedPin as MapPin}
+                     onClose={handleCloseDetailCard}
+                     open={detailCardOpen}
+                     onTruckDeleted={handleTruckDeleted}
+                     onViewEmails={onViewEmails}
+                   />
+                 )}
+               </Box>
+             )}
     </Box>
   )
 } 

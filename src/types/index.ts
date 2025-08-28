@@ -67,4 +67,30 @@ export interface EmailMessage {
     }
   }
   receivedDateTime: string
+}
+
+export interface LoadData {
+  ref_number: string
+  company_name: string
+  use_depart_date: string
+  pu_drop_date1: string
+  pu_drop_time1: string
+  dropoff_date: string
+  dropoff_time: string
+  dispatcher_initials: string
+  notes: string
+  // Add other fields from avalload table as needed
+  origin_city?: string
+  origin_state?: string
+  destination_city?: string
+  destination_state?: string
+}
+
+export interface MapPin {
+  id: string
+  type: 'truck' | 'load'
+  latitude: number
+  longitude: number
+  title: string
+  data: TruckAvailability | LoadData
 } 

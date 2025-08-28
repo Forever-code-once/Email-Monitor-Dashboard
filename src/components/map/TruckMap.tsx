@@ -21,6 +21,7 @@ interface TruckMapProps {
   onDateChange: (date: Date) => void
   onPinClick: (pin: MapPin) => void
   pins: MapPin[]
+  loadPins?: any[]
   loading?: boolean
 }
 
@@ -29,6 +30,7 @@ export function TruckMap({
   onDateChange, 
   onPinClick, 
   pins, 
+  loadPins = [],
   loading = false 
 }: TruckMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
@@ -87,11 +89,11 @@ export function TruckMap({
     markers.current.forEach(marker => marker.remove())
     markers.current.clear()
 
-    // Add new markers
+    // Add truck markers
     pins.forEach(pin => {
-      // Create custom marker element
+      // Create truck marker element (blue circle with truck count)
       const markerElement = document.createElement('div')
-      markerElement.className = 'custom-marker'
+      markerElement.className = 'custom-marker truck-marker'
       markerElement.innerHTML = `
         <div style="
           background: #1976d2;
@@ -109,7 +111,7 @@ export function TruckMap({
           cursor: pointer;
           transition: transform 0.2s;
         " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-          ${pin.truckCount}
+          🚛
         </div>
       `
 
@@ -147,10 +149,71 @@ export function TruckMap({
       markers.current.set(pin.id, marker)
     })
 
+    // Add load markers
+    loadPins.forEach(loadPin => {
+      // Create load marker element (orange square with package icon)
+      const markerElement = document.createElement('div')
+      markerElement.className = 'custom-marker load-marker'
+      markerElement.innerHTML = `
+        <div style="
+          background: #ff9800;
+          color: white;
+          border-radius: 4px;
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          font-size: 16px;
+          border: 2px solid white;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          cursor: pointer;
+          transition: transform 0.2s;
+        " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+          📦
+        </div>
+      `
+
+      // Create popup
+      const popup = new mapboxgl.Popup({
+        offset: 25,
+        closeButton: false,
+        className: 'custom-popup'
+      }).setHTML(`
+        <div style="padding: 8px; min-width: 150px;">
+          <div style="font-weight: bold; margin-bottom: 4px;">
+            ${loadPin.data.company_name}
+          </div>
+          <div style="font-size: 12px; color: #666;">
+            Load #${loadPin.data.ref_number}
+          </div>
+          <div style="font-size: 11px; color: #999; margin-top: 4px;">
+            Click for details
+          </div>
+        </div>
+      `)
+
+      // Create marker
+      const marker = new mapboxgl.Marker(markerElement)
+        .setLngLat([loadPin.longitude, loadPin.latitude])
+        .setPopup(popup)
+        .addTo(map.current!)
+
+      // Add click handler
+      markerElement.addEventListener('click', () => {
+        onPinClick(loadPin)
+      })
+
+      // Store marker reference
+      markers.current.set(loadPin.id, marker)
+    })
+
     // Fit map to show all pins if there are any
-    if (pins.length > 0) {
+    const allPins = [...pins, ...loadPins]
+    if (allPins.length > 0) {
       const bounds = new mapboxgl.LngLatBounds()
-      pins.forEach(pin => {
+      allPins.forEach(pin => {
         bounds.extend([pin.longitude, pin.latitude])
       })
       
@@ -159,7 +222,7 @@ export function TruckMap({
         maxZoom: 8
       })
     }
-  }, [pins, onPinClick])
+  }, [pins, loadPins, onPinClick])
 
   // Add custom CSS for markers and popups
   useEffect(() => {

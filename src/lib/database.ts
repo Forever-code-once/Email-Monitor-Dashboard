@@ -226,5 +226,67 @@ export const databaseQueries = {
     ]
     
     return executeQuery(query, params)
+  },
+
+  // Get available loads from database (based on your PHP query)
+  async getAvailableLoads() {
+    const query = `
+      SELECT 
+        avalload.*,
+        avalload.actual_name as company_name,
+        avalload.depart_date as use_depart_date,
+        stop1.pu_drop_date1,
+        stop1.pu_drop_time1,
+        stoplast.pu_drop_date1 as dropoff_date,
+        stoplast.pu_drop_time1 as dropoff_time,
+        avalload.dispatcher_id as dispatcher_initials,
+        (STUFF((SELECT ' ' + cast([int_notes] as varchar(8000))
+          FROM loadtrk ltrk
+          WHERE (ltrk.ref_number = avalload.ref_number
+          and cast([int_notes] as varchar(8000)) <> ''
+        ) 
+        FOR XML PATH ('')), 1, 2, '')) AS notes
+      FROM avalload
+        LEFT JOIN trkstops stop1 ON stop1.ref_number = avalload.ref_number AND stop1.sequence_num = 1
+        LEFT JOIN trkstops stoplast ON stoplast.ref_number = avalload.ref_number 
+          AND stoplast.recnum = (SELECT MAX(recnum) FROM trkstops WHERE trkstops.ref_number = avalload.ref_number)
+      WHERE load_status = 'A'
+      ORDER BY depart_date, stop1.pu_drop_date1, stop1.pu_drop_time1
+    `
+    
+    return executeQuery(query)
+  },
+
+  // Get loads by company
+  async getLoadsByCompany(companyName: string) {
+    const query = `
+      SELECT 
+        avalload.*,
+        avalload.actual_name as company_name,
+        avalload.depart_date as use_depart_date,
+        stop1.pu_drop_date1,
+        stop1.pu_drop_time1,
+        stoplast.pu_drop_date1 as dropoff_date,
+        stoplast.pu_drop_time1 as dropoff_time,
+        avalload.dispatcher_id as dispatcher_initials,
+        (STUFF((SELECT ' ' + cast([int_notes] as varchar(8000))
+          FROM loadtrk ltrk
+          WHERE (ltrk.ref_number = avalload.ref_number
+          and cast([int_notes] as varchar(8000)) <> ''
+        ) 
+        FOR XML PATH ('')), 1, 2, '')) AS notes
+      FROM avalload
+        LEFT JOIN trkstops stop1 ON stop1.ref_number = avalload.ref_number AND stop1.sequence_num = 1
+        LEFT JOIN trkstops stoplast ON stoplast.ref_number = avalload.ref_number 
+          AND stoplast.recnum = (SELECT MAX(recnum) FROM trkstops WHERE trkstops.ref_number = avalload.ref_number)
+      WHERE load_status = 'A' AND avalload.actual_name LIKE @companyName
+      ORDER BY depart_date, stop1.pu_drop_date1, stop1.pu_drop_time1
+    `
+    
+    const params = [
+      { name: 'companyName', type: sql.NVarChar, value: `%${companyName}%` }
+    ]
+    
+    return executeQuery(query, params)
   }
 } 
