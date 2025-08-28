@@ -13,10 +13,20 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
+        // Azure SQL Database Configuration
+        AZURE_SQL_SERVER: 'your-server.database.windows.net',
+        AZURE_SQL_DATABASE: 'your-database-name',
+        AZURE_SQL_USER: 'your-username',
+        AZURE_SQL_PASSWORD: 'your-password',
       },
       env_production: {
         NODE_ENV: 'production',
         PORT: 3000,
+        // Azure SQL Database Configuration
+        AZURE_SQL_SERVER: 'your-server.database.windows.net',
+        AZURE_SQL_DATABASE: 'your-database-name',
+        AZURE_SQL_USER: 'your-username',
+        AZURE_SQL_PASSWORD: 'your-password',
       },
       error_file: './logs/nextjs-error.log',
       out_file: './logs/nextjs-out.log',
