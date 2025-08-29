@@ -225,6 +225,14 @@ export class EmailWebSocketClient {
     })
   }
 
+  // Request database update
+  requestDatabaseUpdate() {
+    this.send({
+      type: 'REQUEST_DATABASE_UPDATE',
+      data: {}
+    })
+  }
+
   on(event: string, callback: (data: any) => void) {
     if (!this.eventListeners[event]) {
       this.eventListeners[event] = []

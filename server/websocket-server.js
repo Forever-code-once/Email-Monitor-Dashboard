@@ -7,15 +7,14 @@ require('dotenv').config({ path: '.env.local' });
 class EmailMonitorServer {
   constructor() {
     this.wss = null;
-    this.emailCheckInterval = null;
     this.lastEmailCheck = new Date();
     this.knownEmails = new Set();
     this.clients = new Set();
+    this.isMonitoring = false;
     
     // Configuration
-    this.CHECK_INTERVAL = 10000; // Check every 10 seconds for testing
     this.PORT = 8080;
-    this.NEXTJS_URL = process.env.NEXTJS_URL || 'http://localhost:3000'; // Configurable Next.js URL
+    this.NEXTJS_URL = process.env.NEXTJS_URL || 'http://localhost:3000';
   }
 
   // Initialize WebSocket server
@@ -37,7 +36,7 @@ class EmailMonitorServer {
         data: { 
           status: 'connected', 
           timestamp: new Date().toISOString(),
-          message: 'Real-time email monitoring active'
+          message: 'Real-time email monitoring ready'
         }
       });
 
@@ -64,8 +63,7 @@ class EmailMonitorServer {
       this.sendServerStatus();
     });
 
-    // Start email monitoring
-    this.startEmailMonitoring();
+    console.log('✅ WebSocket server ready for event-driven email monitoring');
   }
 
   // Handle messages from clients
@@ -94,6 +92,10 @@ class EmailMonitorServer {
         // Store access token for this client
         this.setAccessToken(ws, message.data.token, message.data.expiresAt);
         break;
+      case 'REQUEST_DATABASE_UPDATE':
+        console.log('🗄️ Database update requested');
+        this.checkDatabaseUpdates();
+        break;
       case 'PING':
         // Respond to ping with pong
         this.sendToClient(ws, {
@@ -119,50 +121,41 @@ class EmailMonitorServer {
     });
   }
 
-  // Start periodic email checking
+  // Start email monitoring (event-driven, no polling)
   startEmailMonitoring() {
-    if (this.emailCheckInterval) {
-      console.log('⚠️ Email monitoring already running');
+    if (this.isMonitoring) {
+      console.log('⚠️ Email monitoring already active');
       return;
     }
 
-    console.log('🔄 Starting email monitoring...');
+    this.isMonitoring = true;
+    console.log('✅ Email monitoring started - event-driven mode');
     
     // Do an initial check
     this.checkForNewEmails();
-    
-    // Set up periodic checking
-    this.emailCheckInterval = setInterval(() => {
-      this.checkForNewEmails();
-    }, this.CHECK_INTERVAL);
-    
-    console.log(`✅ Email monitoring started - checking every ${this.CHECK_INTERVAL/1000} seconds`);
 
     this.broadcastToAll({
       type: 'MONITORING_STATUS',
       data: { 
         active: true, 
-        interval: this.CHECK_INTERVAL,
-        message: 'Email monitoring started'
+        mode: 'event-driven',
+        message: 'Email monitoring started - event-driven mode'
       }
     });
   }
 
   // Stop email monitoring
   stopEmailMonitoring() {
-    if (this.emailCheckInterval) {
-      clearInterval(this.emailCheckInterval);
-      this.emailCheckInterval = null;
-      console.log('⏹️ Email monitoring stopped');
-      
-      this.broadcastToAll({
-        type: 'MONITORING_STATUS',
-        data: { 
-          active: false,
-          message: 'Email monitoring stopped'
-        }
-      });
-    }
+    this.isMonitoring = false;
+    console.log('⏹️ Email monitoring stopped');
+    
+    this.broadcastToAll({
+      type: 'MONITORING_STATUS',
+      data: { 
+        active: false,
+        message: 'Email monitoring stopped'
+      }
+    });
   }
 
   // Check for new emails using Microsoft Graph API
@@ -351,6 +344,61 @@ class EmailMonitorServer {
     }
   }
 
+  // Check for database updates (loads, trucks, etc.)
+  async checkDatabaseUpdates() {
+    try {
+      console.log('🗄️ Checking for database updates...');
+      
+      // Check for new loads
+      const loadsResponse = await fetch(`${this.NEXTJS_URL}/api/loads`);
+      if (loadsResponse.ok) {
+        const loadsData = await loadsResponse.json();
+        if (loadsData.success && loadsData.loads) {
+          console.log(`📦 Found ${loadsData.loads.length} loads in database`);
+          
+          this.broadcastToAll({
+            type: 'DATABASE_UPDATE',
+            data: {
+              type: 'loads',
+              loads: loadsData.loads,
+              count: loadsData.loads.length,
+              timestamp: new Date().toISOString()
+            }
+          });
+        }
+      }
+
+      // Check for truck availability updates
+      const trucksResponse = await fetch(`${this.NEXTJS_URL}/api/test-database`);
+      if (trucksResponse.ok) {
+        const trucksData = await trucksResponse.json();
+        if (trucksData.success) {
+          console.log(`🚛 Found ${trucksData.truckCount || 0} trucks in database`);
+          
+          this.broadcastToAll({
+            type: 'DATABASE_UPDATE',
+            data: {
+              type: 'trucks',
+              truckCount: trucksData.truckCount || 0,
+              timestamp: new Date().toISOString()
+            }
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Error checking database updates:', error);
+      
+      this.broadcastToAll({
+        type: 'DATABASE_ERROR',
+        data: {
+          error: error.message,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  }
+
   // Send message to specific client
   sendToClient(ws, message) {
     if (ws.readyState === WebSocket.OPEN) {
@@ -383,10 +431,10 @@ class EmailMonitorServer {
     this.broadcastToAll({
       type: 'SERVER_STATUS',
       data: {
-        active: !!this.emailCheckInterval,
+        active: this.isMonitoring,
         clientCount: this.clients.size,
         lastCheck: this.lastEmailCheck.toISOString(),
-        checkInterval: this.CHECK_INTERVAL,
+        checkInterval: 'N/A (event-driven)',
         uptime: process.uptime()
       }
     });

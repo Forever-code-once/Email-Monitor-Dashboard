@@ -98,6 +98,9 @@ export function Dashboard() {
         console.log('Is authenticated:', isAuthenticated)
         console.log('Has active account:', hasActiveAccount)
         
+        // Request initial database update
+        wsClient.requestDatabaseUpdate()
+        
         // Send access token to WebSocket server
         try {
           console.log('🔍 Getting active account...')
@@ -211,6 +214,24 @@ export function Dashboard() {
         console.error('❌ WebSocket error:', error)
         setWsConnected(false)
         setError(`WebSocket connection error: ${error.message || 'Connection failed'}`)
+      })
+
+      wsClient.on('databaseUpdate', (data: any) => {
+        console.log('🗄️ Database update received via WebSocket:', data)
+        // Handle database updates (loads, trucks, etc.)
+        if (data.type === 'loads') {
+          console.log(`📦 Received ${data.count} loads update`)
+          // You can add logic here to update the map with new loads
+        } else if (data.type === 'trucks') {
+          console.log(`🚛 Received ${data.truckCount} trucks update`)
+          // You can add logic here to update truck data
+        }
+      })
+
+      wsClient.on('databaseError', (data: any) => {
+        console.error('❌ Database error via WebSocket:', data)
+        setError(`Database error: ${data.error || 'Unknown error'}`)
+        setTimeout(() => setError(null), 5000)
       })
 
       wsClient.on('maxReconnectAttemptsReached', () => {
