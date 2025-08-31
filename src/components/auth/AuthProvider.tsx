@@ -3,7 +3,7 @@
 import { PublicClientApplication } from '@azure/msal-browser'
 import { MsalProvider } from '@azure/msal-react'
 import { msalConfig } from '@/lib/msalConfig'
-import { ReactNode, useEffect } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 
 const msalInstance = new PublicClientApplication(msalConfig)
 
@@ -12,12 +12,47 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  // Handle redirect response when user returns from authentication
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Initialize MSAL instance
   useEffect(() => {
-    msalInstance.handleRedirectPromise().catch((error) => {
-      console.error('Error handling redirect:', error)
-    })
+    const initializeMsal = async () => {
+      try {
+        console.log('🔧 Initializing MSAL instance...')
+        // Initialize the MSAL instance first
+        await msalInstance.initialize()
+        console.log('✅ MSAL instance initialized successfully')
+        
+        // Then handle redirect promise
+        console.log('🔄 Handling redirect promise...')
+        await msalInstance.handleRedirectPromise()
+        console.log('✅ Redirect promise handled successfully')
+        
+        setIsInitialized(true)
+      } catch (error) {
+        console.error('❌ Error initializing MSAL:', error)
+        setIsInitialized(true) // Set to true even on error to prevent infinite loading
+      }
+    }
+
+    initializeMsal()
   }, [])
+
+  // Show loading state while initializing
+  if (!isInitialized) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        fontSize: '16px',
+        color: '#666'
+      }}>
+        Initializing authentication...
+      </div>
+    )
+  }
 
   return (
     <MsalProvider instance={msalInstance}>
