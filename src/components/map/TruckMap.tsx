@@ -9,6 +9,7 @@ import {
   Typography,
 } from '@mui/material'
 import { MapPin } from '@/types/map'
+import { LoadPin } from '@/lib/loadGeocoding'
 
 // Set Mapbox access token - use public token for client-side
 // For production, you'll need to either:
@@ -19,9 +20,9 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
 interface TruckMapProps {
   selectedDate: Date
   onDateChange: (date: Date) => void
-  onPinClick: (pin: MapPin) => void
+  onPinClick: (pin: MapPin | LoadPin) => void
   pins: MapPin[]
-  loadPins?: any[]
+  loadPins?: LoadPin[]
   loading?: boolean
 }
 

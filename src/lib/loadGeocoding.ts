@@ -141,26 +141,55 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
 }
 
 /**
+ * Format time from HHMMSS format to HH:MM format
+ */
+function formatTime(timeStr: string): string {
+  if (!timeStr || timeStr === 'TBD' || timeStr.length < 6) return 'TBD'
+  
+  const hours = timeStr.substring(0, 2)
+  const minutes = timeStr.substring(2, 4)
+  return `${hours}:${minutes}`
+}
+
+/**
+ * Format date and time combination
+ */
+function formatDateTime(dateStr: string, timeStr: string): string {
+  if (!dateStr || dateStr === 'TBD') return 'TBD'
+  
+  try {
+    const date = new Date(dateStr)
+    const formattedDate = date.toISOString().split('T')[0] // YYYY-MM-DD
+    const formattedTime = formatTime(timeStr)
+    
+    if (formattedTime === 'TBD') return formattedDate
+    return `${formattedDate} ${formattedTime}`
+  } catch (error) {
+    return 'TBD'
+  }
+}
+
+/**
  * Format load data for display in popup
  */
 export function formatLoadInfo(load: LoadData) {
   return {
-    company: load.company_name,
-    refNumber: load.REF_NUMBER || load.ref_number,
+    company: load.company_name?.trim() || 'Unknown Company',
+    refNumber: load.REF_NUMBER || load.ref_number || 'Unknown',
     startLocation: load.FROMCITY && load.FROMSTATE 
       ? `${load.FROMCITY.trim()}, ${load.FROMSTATE.trim()}` 
       : (load.origin_city && load.origin_state 
         ? `${load.origin_city}, ${load.origin_state}` 
         : 'Location TBD'),
-    startDate: load.pu_drop_date1 || 'TBD',
-    startTime: load.pu_drop_time1 || 'TBD',
+    startDate: formatDateTime(load.pu_drop_date1 || '', load.pu_drop_time1 || ''),
+    startTime: formatTime(load.pu_drop_time1 || ''),
     endLocation: load.TOCITY && load.TOSTATE 
       ? `${load.TOCITY.trim()}, ${load.TOSTATE.trim()}` 
       : (load.destination_city && load.destination_state 
         ? `${load.destination_city}, ${load.destination_state}` 
         : 'Location TBD'),
-    endDate: load.dropoff_date || 'TBD',
-    endTime: load.dropoff_time || 'TBD',
+    endDate: formatDateTime(load.dropoff_date || '', load.dropoff_time || ''),
+    endTime: formatTime(load.dropoff_time || ''),
     dispatcher: load.dispatcher_initials || 'N/A',
     notes: load.notes || 'No notes available',
     departDate: load.use_depart_date || 'TBD'

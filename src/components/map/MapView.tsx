@@ -503,7 +503,7 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
     }
   }
 
-  const handlePinClick = (pin: MapPin) => {
+  const handlePinClick = (pin: MapPin | any) => {
     setSelectedPin(pin)
     setDetailCardOpen(true)
   }
@@ -563,7 +563,7 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
                >
                  {'type' in selectedPin && selectedPin.type === 'load' ? (
                    <LoadDetailCard
-                     load={selectedPin.data}
+                     load={selectedPin}
                      onClose={handleCloseDetailCard}
                      open={detailCardOpen}
                    />
