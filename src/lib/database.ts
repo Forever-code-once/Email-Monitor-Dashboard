@@ -8,7 +8,7 @@ const dbConfig: sql.config = {
   password: process.env.AZURE_SQL_PASSWORD || 'your-password',
   options: {
     encrypt: true, // Required for Azure SQL Database
-    trustServerCertificate: false, // Required for Azure SQL Database
+    trustServerCertificate: true, // Required for Azure SQL Database
     enableArithAbort: true,
     requestTimeout: 30000, // 30 seconds
   },
