@@ -2,8 +2,11 @@
 
 import { useState } from 'react'
 import {
-  Card,
-  CardContent,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
   Typography,
   Box,
   Chip,
@@ -11,8 +14,13 @@ import {
   IconButton,
   Collapse,
   Grid,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
 } from '@mui/material'
 import {
+  Close,
   LocalShipping,
   LocationOn,
   Schedule,
@@ -26,134 +34,145 @@ import { LoadData } from '@/types'
 import { formatLoadInfo } from '@/lib/loadGeocoding'
 
 interface LoadDetailCardProps {
-  load: LoadData
+  load: LoadData | any // Can be single load or grouped load pin
   onClose?: () => void
+  open?: boolean
 }
 
-export function LoadDetailCard({ load, onClose }: LoadDetailCardProps) {
+export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardProps) {
   const [expanded, setExpanded] = useState(false)
-  const loadInfo = formatLoadInfo(load)
+  
+  // Handle both single load and grouped load pin structures
+  const isGroupedPin = load && 'loads' in load && Array.isArray(load.loads)
+  const loads = isGroupedPin ? load.loads : [load]
+  const firstLoad = loads[0]
+  const loadInfo = formatLoadInfo(firstLoad)
 
   const handleExpandClick = () => {
     setExpanded(!expanded)
   }
 
+  // Group loads by company
+  const companyGroups = loads.reduce((groups: any, load: LoadData) => {
+    const company = load.company_name || 'Unknown Company'
+    if (!groups[company]) {
+      groups[company] = []
+    }
+    groups[company].push(load)
+    return groups
+  }, {})
+
   return (
-    <Card sx={{ 
-      minWidth: 300, 
-      maxWidth: 400,
-      boxShadow: 3,
-      border: '2px solid #1976d2'
-    }}>
-      <CardContent>
-        {/* Header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <LocalShipping sx={{ color: '#1976d2', mr: 1 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Load #{loadInfo.refNumber}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          maxHeight: '80vh'
+        }
+      }}
+    >
+      <DialogTitle sx={{ pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LocationOn sx={{ color: 'primary.main' }} />
+            <Typography variant="h6">
+              {isGroupedPin ? `${load.city}, ${load.state}` : `${loadInfo.startLocation}`}
+            </Typography>
+          </Box>
+          <IconButton onClick={onClose} size="small">
+            <Close />
+          </IconButton>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+          <LocalShipping sx={{ color: 'text.secondary', fontSize: 20 }} />
+          <Typography variant="body2" color="text.secondary">
+            {loads.length} load{loads.length !== 1 ? 's' : ''} available
           </Typography>
+        </Box>
+      </DialogTitle>
+
+      <DialogContent sx={{ pt: 0 }}>
+        {/* Available Loads Section */}
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <LocalShipping sx={{ color: 'primary.main', fontSize: 20 }} />
+            <Typography variant="subtitle1" fontWeight="medium">
+              Available Loads
+            </Typography>
+          </Box>
           <Chip 
-            label="Available Load" 
+            label={isGroupedPin ? load.date : loadInfo.startDate} 
             color="primary" 
+            variant="outlined"
             size="small"
-            icon={<LocalShipping />}
           />
         </Box>
 
-        {/* Company Info */}
-        <Box sx={{ mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-            <Business sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-            <Typography variant="subtitle1" fontWeight="bold">
-              {loadInfo.company}
-            </Typography>
-          </Box>
-          {loadInfo.dispatcher !== 'N/A' && (
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Person sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-              <Typography variant="body2" color="text.secondary">
-                Dispatcher: {loadInfo.dispatcher}
-              </Typography>
+        {/* Loads List */}
+        <List sx={{ bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+          {Object.entries(companyGroups).map(([company, companyLoads]: [string, any]) => (
+            <Box key={company}>
+              {/* Company Header */}
+              <ListItem sx={{ py: 1, bgcolor: 'grey.50' }}>
+                <ListItemText
+                  primary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Business sx={{ color: 'primary.main', fontSize: 16 }} />
+                      <Typography variant="subtitle2" fontWeight="bold">
+                        {company}
+                      </Typography>
+                    </Box>
+                  }
+                  secondary={`${companyLoads.length} load${companyLoads.length !== 1 ? 's' : ''}`}
+                />
+              </ListItem>
+              
+              {/* Loads for this company */}
+              {companyLoads.map((loadItem: LoadData, index: number) => {
+                const itemInfo = formatLoadInfo(loadItem)
+                return (
+                  <ListItem key={`${loadItem.REF_NUMBER}-${index}`} sx={{ pl: 4, py: 1 }}>
+                    <ListItemIcon>
+                      <LocalShipping sx={{ color: 'text.secondary', fontSize: 16 }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            Load #{itemInfo.refNumber}
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                            <LocationOn sx={{ fontSize: 14, color: 'text.secondary' }} />
+                            <Typography variant="caption" color="text.secondary">
+                              {itemInfo.startLocation} → {itemInfo.endLocation}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                            <Schedule sx={{ fontSize: 14, color: 'text.secondary' }} />
+                            <Typography variant="caption" color="text.secondary">
+                              Pickup: {itemInfo.startDate} {itemInfo.startTime}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                )
+              })}
+              
+              {Object.keys(companyGroups).indexOf(company) < Object.keys(companyGroups).length - 1 && (
+                <Divider />
+              )}
             </Box>
-          )}
-        </Box>
+          ))}
+        </List>
 
-        <Divider sx={{ my: 2 }} />
-
-        {/* Pickup Information */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" fontWeight="bold" color="primary" gutterBottom>
-            Pickup Details
-          </Typography>
-          <Grid container spacing={1}>
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <LocationOn sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                <Typography variant="body2">
-                  {loadInfo.startLocation}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Schedule sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                <Typography variant="body2">
-                  Date: {loadInfo.startDate}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6}>
-              <Typography variant="body2" color="text.secondary">
-                Time: {loadInfo.startTime}
-              </Typography>
-            </Grid>
-          </Grid>
-        </Box>
-
-        {/* Delivery Information */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" fontWeight="bold" color="primary" gutterBottom>
-            Delivery Details
-          </Typography>
-          <Grid container spacing={1}>
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <LocationOn sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                <Typography variant="body2">
-                  {loadInfo.endLocation}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Schedule sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                <Typography variant="body2">
-                  Date: {loadInfo.endDate}
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6}>
-              <Typography variant="body2" color="text.secondary">
-                Time: {loadInfo.endTime}
-              </Typography>
-            </Grid>
-          </Grid>
-        </Box>
-
-        {/* Departure Date */}
-        {loadInfo.departDate !== 'TBD' && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" fontWeight="bold" color="primary" gutterBottom>
-              Departure
-            </Typography>
-            <Typography variant="body2">
-              {loadInfo.departDate}
-            </Typography>
-          </Box>
-        )}
-
-        {/* Expandable Notes Section */}
-        {loadInfo.notes !== 'No notes available' && (
+        {/* Notes Section (if any loads have notes) */}
+        {loads.some((loadItem: LoadData) => loadItem.notes && loadItem.notes !== 'No notes available') && (
           <>
             <Divider sx={{ my: 2 }} />
             <Box>
@@ -168,31 +187,34 @@ export function LoadDetailCard({ load, onClose }: LoadDetailCardProps) {
               </Box>
               <Collapse in={expanded} timeout="auto" unmountOnExit>
                 <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                    {loadInfo.notes}
-                  </Typography>
+                  {loads.map((loadItem: LoadData, index: number) => {
+                    const itemInfo = formatLoadInfo(loadItem)
+                    if (itemInfo.notes !== 'No notes available') {
+                      return (
+                        <Box key={index} sx={{ mb: 1 }}>
+                          <Typography variant="caption" fontWeight="bold" color="primary">
+                            Load #{itemInfo.refNumber}:
+                          </Typography>
+                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                            {itemInfo.notes}
+                          </Typography>
+                        </Box>
+                      )
+                    }
+                    return null
+                  })}
                 </Box>
               </Collapse>
             </Box>
           </>
         )}
+      </DialogContent>
 
-        {/* Close Button */}
-        {onClose && (
-          <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <IconButton 
-              onClick={onClose}
-              size="small"
-              sx={{ 
-                bgcolor: 'grey.100',
-                '&:hover': { bgcolor: 'grey.200' }
-              }}
-            >
-              ✕
-            </IconButton>
-          </Box>
-        )}
-      </CardContent>
-    </Card>
+      <DialogActions sx={{ p: 2 }}>
+        <Button onClick={onClose} variant="outlined" startIcon={<Close />}>
+          Close
+        </Button>
+      </DialogActions>
+    </Dialog>
   )
-} 
+}

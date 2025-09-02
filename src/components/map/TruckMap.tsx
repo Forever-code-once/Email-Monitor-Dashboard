@@ -149,9 +149,9 @@ export function TruckMap({
       markers.current.set(pin.id, marker)
     })
 
-    // Add load markers
+    // Add load markers (grouped by location like trucks)
     loadPins.forEach(loadPin => {
-      // Create load marker element (orange square with package icon)
+      // Create load marker element (orange square with package icon and count)
       const markerElement = document.createElement('div')
       markerElement.className = 'custom-marker load-marker'
       markerElement.innerHTML = `
@@ -165,7 +165,7 @@ export function TruckMap({
           align-items: center;
           justify-content: center;
           font-weight: bold;
-          font-size: 16px;
+          font-size: 12px;
           border: 2px solid white;
           box-shadow: 0 2px 4px rgba(0,0,0,0.3);
           cursor: pointer;
@@ -175,7 +175,7 @@ export function TruckMap({
         </div>
       `
 
-      // Create popup
+      // Create popup (matching truck popup format)
       const popup = new mapboxgl.Popup({
         offset: 25,
         closeButton: false,
@@ -183,10 +183,10 @@ export function TruckMap({
       }).setHTML(`
         <div style="padding: 8px; min-width: 150px;">
           <div style="font-weight: bold; margin-bottom: 4px;">
-            ${loadPin.data.company_name}
+            ${loadPin.city}, ${loadPin.state}
           </div>
           <div style="font-size: 12px; color: #666;">
-            Load #${loadPin.data.ref_number}
+            ${loadPin.loadCount} load${loadPin.loadCount !== 1 ? 's' : ''} available
           </div>
           <div style="font-size: 11px; color: #999; margin-top: 4px;">
             Click for details

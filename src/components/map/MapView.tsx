@@ -565,6 +565,7 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
                    <LoadDetailCard
                      load={selectedPin.data}
                      onClose={handleCloseDetailCard}
+                     open={detailCardOpen}
                    />
                  ) : (
                    <TruckDetailCard
