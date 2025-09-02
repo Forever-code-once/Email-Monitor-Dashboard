@@ -51,17 +51,76 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
     })
   }, [customerCards])
 
-  // Fetch loads from database and create pins
-  const fetchAndCreateLoadPins = useCallback(async () => {
+  // Fetch loads from database and create pins with date filtering
+  const fetchAndCreateLoadPins = useCallback(async (date: Date, range?: { start: Date; end: Date }) => {
     setLoadingLoads(true)
     try {
-      console.log('🗺️ Fetching loads from database...')
+      console.log('🗺️ Fetching loads from database for date:', {
+        selectedDate: date.toISOString().split('T')[0],
+        year: date.getFullYear(),
+        month: date.getMonth() + 1,
+        day: date.getDate(),
+        hasRange: !!range
+      })
       const response = await fetch('/api/loads')
       const data = await response.json()
       
       if (data.success && data.loads) {
-        console.log(`🗺️ Found ${data.loads.length} loads from database`)
-        const loadPins = await convertLoadsToPins(data.loads)
+        console.log(`🗺️ Found ${data.loads.length} total loads from database`)
+        
+        // Filter loads by date range or selected date
+        const filteredLoads = data.loads.filter((load: LoadData) => {
+          if (!load.pu_drop_date1) {
+            console.log(`⚠️ Load ${load.REF_NUMBER} has no start date, excluding`)
+            return false
+          }
+          
+          const loadDate = new Date(load.pu_drop_date1)
+          if (isNaN(loadDate.getTime())) {
+            console.log(`⚠️ Load ${load.REF_NUMBER} has invalid date: ${load.pu_drop_date1}`)
+            return false
+          }
+          
+          if (range) {
+            const matches = loadDate >= range.start && loadDate <= range.end
+            console.log(`🗺️ Load ${load.REF_NUMBER} date range check:`, {
+              loadDate: loadDate.toISOString().split('T')[0],
+              rangeStart: range.start.toISOString().split('T')[0],
+              rangeEnd: range.end.toISOString().split('T')[0],
+              matches
+            })
+            return matches
+          } else {
+            // Check if load date matches selected date (ignore time)
+            const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+            const loadDateOnly = new Date(loadDate.getFullYear(), loadDate.getMonth(), loadDate.getDate())
+            const dateMatches = loadDateOnly.getTime() === selectedDateOnly.getTime()
+            
+            console.log(`🗺️ Load ${load.REF_NUMBER} date comparison:`, {
+              selectedDate: selectedDateOnly.toISOString().split('T')[0],
+              loadDate: loadDateOnly.toISOString().split('T')[0],
+              matches: dateMatches,
+              company: load.company_name?.trim()
+            })
+            
+            return dateMatches
+          }
+        })
+        
+        console.log(`🗺️ Filtered to ${filteredLoads.length} loads for selected date/range`)
+        
+        // If no loads found for the selected date, show available dates
+        if (filteredLoads.length === 0) {
+          console.log(`⚠️ No loads found for selected date: ${date.toISOString().split('T')[0]}`)
+          console.log(`📅 Available load dates:`, data.loads
+            .filter((load: LoadData) => load.pu_drop_date1)
+            .map((load: LoadData) => new Date(load.pu_drop_date1!).toISOString().split('T')[0])
+            .filter((date: string, index: number, array: string[]) => array.indexOf(date) === index)
+            .sort()
+          )
+        }
+        
+        const loadPins = await convertLoadsToPins(filteredLoads)
         setLoadPins(loadPins)
         console.log(`🗺️ Created ${loadPins.length} load pins`)
       } else {
@@ -76,10 +135,12 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
     }
   }, [])
 
-  // Fetch loads on component mount
+  // Fetch loads when date changes
   useEffect(() => {
-    fetchAndCreateLoadPins()
-  }, [fetchAndCreateLoadPins])
+    if (initialized && !isNaN(selectedDate.getTime())) {
+      fetchAndCreateLoadPins(selectedDate, dateRange || undefined)
+    }
+  }, [selectedDate, dateRange, fetchAndCreateLoadPins, initialized])
 
   // Get all available dates from customer cards
   const availableDates = useCallback(() => {

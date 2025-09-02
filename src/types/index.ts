@@ -70,16 +70,26 @@ export interface EmailMessage {
 }
 
 export interface LoadData {
-  ref_number: string
-  company_name: string
-  use_depart_date: string
-  pu_drop_date1: string
-  pu_drop_time1: string
-  dropoff_date: string
-  dropoff_time: string
-  dispatcher_initials: string
-  notes: string
-  // Add other fields from avalload table as needed
+  // API response fields (primary)
+  REF_NUMBER?: number
+  company_name?: string
+  use_depart_date?: string
+  pu_drop_date1?: string
+  pu_drop_time1?: string
+  dropoff_date?: string
+  dropoff_time?: string
+  dispatcher_initials?: string
+  notes?: string
+  FROMCITY?: string
+  FROMSTATE?: string
+  TOCITY?: string
+  TOSTATE?: string
+  FROMLAT?: number
+  FROMLONG?: number
+  TOLAT?: number
+  TOLONG?: number
+  // Legacy fields (keep for backward compatibility)
+  ref_number?: string
   origin_city?: string
   origin_state?: string
   destination_city?: string

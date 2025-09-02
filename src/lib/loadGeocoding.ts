@@ -10,39 +10,86 @@ export interface LoadPin extends MapPin {
  * Convert load data to map pins by geocoding locations
  */
 export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> {
+  console.log(`🔄 Converting ${loads.length} loads to individual pins...`)
   const pins: LoadPin[] = []
   
   for (const load of loads) {
     try {
-      // Try to geocode the pickup location first
+      console.log(`📋 Processing load: REF_NUMBER=${load.REF_NUMBER}, FROMCITY=${load.FROMCITY}, FROMSTATE=${load.FROMSTATE}`)
+      
       let location = ''
       let coordinates: [number, number] | null = null
       
-      // Try different location fields from the load data
-      if (load.origin_city && load.origin_state) {
+      // Use the actual API response fields
+      if (load.FROMCITY && load.FROMSTATE) {
+        location = `${load.FROMCITY.trim()}, ${load.FROMSTATE.trim()}, USA`
+        // Use coordinates if available (more accurate than geocoding)
+        if (load.FROMLAT && load.FROMLONG) {
+          // FROMLAT is latitude, FROMLONG is longitude
+          coordinates = [load.FROMLAT, load.FROMLONG]
+        }
+      } else if (load.origin_city && load.origin_state) {
+        // Fallback to legacy fields
         location = `${load.origin_city}, ${load.origin_state}, USA`
-      } else if (load.pu_drop_date1) {
-        // If we have pickup info, try to extract location from notes or other fields
-        location = `${load.pu_drop_date1}, USA`
       }
       
       if (location) {
-        const geocodeResult = await geocodeAddress(location.split(',')[0].trim(), location.split(',')[1].trim())
-        if (geocodeResult) {
-          const pin: LoadPin = {
-            id: `load-${load.ref_number}`,
-            type: 'load',
-            latitude: geocodeResult.latitude,
-            longitude: geocodeResult.longitude,
-            title: `${load.company_name} - Load ${load.ref_number}`,
-            data: load
-          }
+        let latitude: number
+        let longitude: number
         
-          pins.push(pin)
-          console.log(`✅ Created load pin for ${load.company_name} at ${location}`)
+        if (coordinates) {
+          // Use exact coordinates from API
+          // coordinates = [FROMLAT, FROMLONG] = [latitude, longitude]
+          [latitude, longitude] = coordinates
+          
+          // Apply longitude correction here, before validation and pin creation
+          // US longitudes should be negative. If positive, make it negative.
+          if (longitude > 0) {
+            longitude = -longitude;
+            console.log(`🔄 Corrected positive longitude to negative: ${longitude}`);
+          }
+          
+          // Validate coordinates
+          if (latitude < -90 || latitude > 90) {
+            console.error(`❌ Invalid latitude value: ${latitude} for load ${load.REF_NUMBER}`)
+            continue
+          }
+          if (longitude < -180 || longitude > 180) {
+            console.error(`❌ Invalid longitude value: ${longitude} for load ${load.REF_NUMBER}`)
+            continue
+          }
+          
+          console.log(`📍 Using exact coordinates for ${load.company_name}: latitude=${latitude}, longitude=${longitude}`)
         } else {
-          console.log(`⚠️ Could not geocode location for load ${load.ref_number}`)
+          // Fallback to geocoding
+          const geocodeResult = await geocodeAddress(location.split(',')[0].trim(), location.split(',')[1].trim())
+          if (!geocodeResult) {
+            console.log(`⚠️ Could not geocode location for load ${load.ref_number}`)
+            continue
+          }
+          latitude = geocodeResult.latitude
+          longitude = geocodeResult.longitude
+          
+          // Apply longitude correction for geocoded coordinates too
+          if (longitude > 0) {
+            longitude = -longitude;
+            console.log(`🔄 Corrected geocoded positive longitude to negative: ${longitude}`);
+          }
         }
+        
+        const pin: LoadPin = {
+          id: `load-${load.REF_NUMBER || load.ref_number || 'unknown'}`,
+          type: 'load',
+          latitude: latitude,
+          longitude: longitude,
+          title: `${load.company_name || 'Unknown Company'} - Load ${load.REF_NUMBER || load.ref_number || 'unknown'}`,
+          data: load
+        }
+      
+        pins.push(pin)
+        console.log(`✅ Created load pin for ${load.company_name} at ${location}`)
+      } else {
+        console.log(`⚠️ No location data for load ${load.ref_number}`)
       }
     } catch (error) {
       console.error(`❌ Error creating pin for load ${load.ref_number}:`, error)
