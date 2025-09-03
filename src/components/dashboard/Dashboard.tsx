@@ -13,6 +13,7 @@ import {
   Toolbar,
   IconButton,
   Chip,
+  Snackbar,
   Switch,
   FormControlLabel,
   Card,
@@ -40,12 +41,21 @@ export function Dashboard() {
   const [aiProcessing, setAiProcessing] = useState(false)
   const [aiProgress, setAiProgress] = useState({ processed: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'warning' | 'error'; open: boolean } | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [hasActiveAccount, setHasActiveAccount] = useState(false)
   const [viewMode, setViewMode] = useState<'customers' | 'senders' | 'raw' | 'map'>('map')
   const [wsConnected, setWsConnected] = useState(false)
   
   const wsClientRef = useRef<EmailWebSocketClient | null>(null)
+  
+  // Helper function to show toast notifications
+  const showNotification = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info', duration: number = 4000) => {
+    setNotification({ message, type, open: true })
+    setTimeout(() => {
+      setNotification(prev => prev ? { ...prev, open: false } : null)
+    }, duration)
+  }
   
   // Modal state
   const [emailModalOpen, setEmailModalOpen] = useState(false)
@@ -155,8 +165,7 @@ export function Dashboard() {
         setLastRefresh(new Date())
         
         // Show notification
-        setError(`🔔 New email received: ${email.subject}`)
-        setTimeout(() => setError(null), 5000) // Clear after 5 seconds
+        showNotification(`New email received: ${email.subject}`, 'info', 5000)
       })
 
       wsClient.on('monitoringStatus', (data: any) => {
@@ -406,14 +415,26 @@ export function Dashboard() {
       
       // Update success message
       if (successCount > 0) {
-        setError(`✅ AI processed ${successCount}/${processedCount} emails successfully! Found ${totalTrucks} trucks from ${finalCustomerCardsArray.length} customers.`)
+        showNotification(
+          `AI processed ${successCount}/${processedCount} emails successfully! Found ${totalTrucks} trucks from ${finalCustomerCardsArray.length} customers.`,
+          'success',
+          6000
+        )
+        setError(null) // Clear any previous errors
       } else {
-        setError('⚠️ AI processing completed but no truck availability data was found in the emails.')
+        showNotification(
+          'AI processing completed but no truck availability data was found in the emails.',
+          'warning',
+          5000
+        )
+        setError(null) // Clear any previous errors
       }
       
     } catch (error) {
       console.error('Error processing emails with AI:', error)
       setError('Failed to process emails with AI. Some emails may be too long or contain unsupported content.')
+      // Clear any notifications when error occurs
+      setNotification(prev => prev ? { ...prev, open: false } : null)
     } finally {
       setAiProcessing(false)
     }
@@ -610,7 +631,12 @@ export function Dashboard() {
 
       if (emails.length > 0) {
         const forwardedCount = emails.filter(email => isForwardedEmail(email.body.content)).length
-        setError(`✅ Successfully fetched ${emails.length} emails from Inbox (${senderCards.length} senders)! (${forwardedCount} forwarded)`)
+        showNotification(
+          `Successfully fetched ${emails.length} emails from Inbox (${senderCards.length} senders)! (${forwardedCount} forwarded)`,
+          'success',
+          5000
+        )
+        setError(null)
         
         // Show UI immediately, then process AI in background
         setLoading(false)
@@ -682,7 +708,8 @@ export function Dashboard() {
       wsClient.on('connection', (data) => {
         console.log('✅ Manual connection successful:', data)
         setWsConnected(true)
-        setError('✅ WebSocket connected!')
+        showNotification('WebSocket connected!', 'success', 3000)
+        setError(null)
       })
       
       wsClient.on('error', (error) => {
@@ -714,7 +741,7 @@ export function Dashboard() {
         const newStatus = wsClientRef.current?.getConnectionStatus()
         console.log('🔍 WebSocket connection status after reconnect:', newStatus)
         if (newStatus?.connected) {
-          setError('✅ WebSocket reconnected!')
+          showNotification('WebSocket reconnected!', 'success', 3000)
         } else {
           setError('❌ WebSocket reconnection failed')
         }
@@ -740,8 +767,7 @@ export function Dashboard() {
             }
           })
           
-          setError('🔑 Access token sent manually')
-          setTimeout(() => setError(null), 3000)
+                  showNotification('Access token sent manually', 'info', 3000)
         }
       } catch (error) {
         console.error('❌ Failed to send token manually:', error)
@@ -954,19 +980,32 @@ export function Dashboard() {
 
       {error && (
         <Alert 
-          severity={error.includes('✅') ? 'success' : 'error'} 
+          severity="error" 
           sx={{ mb: 3 }} 
           action={
-            !error.includes('✅') && (
-              <Button color="inherit" size="small" onClick={handleLogout}>
-                Sign Out & Retry
-              </Button>
-            )
+            <Button color="inherit" size="small" onClick={handleLogout}>
+              Sign Out & Retry
+            </Button>
           }
         >
           {error}
         </Alert>
       )}
+
+      <Snackbar
+        open={notification?.open || false}
+        autoHideDuration={6000}
+        onClose={() => setNotification(prev => prev ? { ...prev, open: false } : null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert 
+          severity={notification?.type || 'info'}
+          onClose={() => setNotification(prev => prev ? { ...prev, open: false } : null)}
+          sx={{ width: '100%' }}
+        >
+          {notification?.message}
+        </Alert>
+      </Snackbar>
 
       {loading ? (
                  <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
