@@ -198,7 +198,7 @@ export function formatLoadInfo(load: LoadData) {
       : (load.origin_city && load.origin_state 
         ? `${load.origin_city}, ${load.origin_state}` 
         : 'Location TBD'),
-    startDate: formatDateTime(load.pu_drop_date1 || '', load.pu_drop_time1 || '', false),
+    startDate: formatDateTime(load.DEPART_DATE || load.pu_drop_date1 || '', load.pu_drop_time1 || '', false),
     startTime: formatTime(load.pu_drop_time1 || ''),
     endLocation: load.TOCITY && load.TOSTATE 
       ? `${load.TOCITY.trim()}, ${load.TOSTATE.trim()}` 
