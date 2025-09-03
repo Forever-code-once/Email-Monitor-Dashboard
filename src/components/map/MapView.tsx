@@ -77,6 +77,9 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
             return false
           }
           
+          // Check if this is the default SQL Server date (1753-01-01) - treat as current date
+          const isDefaultDate = dateField === '1753-01-01T00:00:00.000Z' || dateField === '1753-01-01'
+          
           const loadDate = new Date(dateField)
           if (isNaN(loadDate.getTime())) {
             console.log(`⚠️ Load ${load.REF_NUMBER} has invalid date: ${dateField}`)
@@ -84,10 +87,30 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
           }
           
           if (range) {
+            // For default date loads, only include them if the range includes today
+            if (isDefaultDate) {
+              const today = new Date()
+              const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+              const rangeIncludesToday = todayOnly >= range.start && todayOnly <= range.end
+              
+              console.log(`🗺️ Load ${load.REF_NUMBER} default date range check:`, {
+                today: todayOnly.toISOString().split('T')[0],
+                rangeStart: range.start.toISOString().split('T')[0],
+                rangeEnd: range.end.toISOString().split('T')[0],
+                isDefaultDate: isDefaultDate,
+                rangeIncludesToday: rangeIncludesToday,
+                matches: rangeIncludesToday
+              })
+              
+              return rangeIncludesToday
+            }
+            
+            // For regular dates, check if they fall within the range
             const matches = loadDate >= range.start && loadDate <= range.end
             console.log(`🗺️ Load ${load.REF_NUMBER} date range check:`, {
               loadDate: loadDate.toISOString().split('T')[0],
               dateField: dateField,
+              isDefaultDate: isDefaultDate,
               rangeStart: range.start.toISOString().split('T')[0],
               rangeEnd: range.end.toISOString().split('T')[0],
               matches
@@ -97,12 +120,33 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
             // Check if load date matches selected date (ignore time)
             const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
             const loadDateOnly = new Date(loadDate.getFullYear(), loadDate.getMonth(), loadDate.getDate())
+            
+            // For default date loads, only show them if selected date is today
+            if (isDefaultDate) {
+              const today = new Date()
+              const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+              const isToday = selectedDateOnly.getTime() === todayOnly.getTime()
+              
+              console.log(`🗺️ Load ${load.REF_NUMBER} default date check:`, {
+                selectedDate: selectedDateOnly.toISOString().split('T')[0],
+                today: todayOnly.toISOString().split('T')[0],
+                isDefaultDate: isDefaultDate,
+                isToday: isToday,
+                matches: isToday,
+                company: load.company_name?.trim()
+              })
+              
+              return isToday
+            }
+            
+            // For regular dates, check if they match the selected date
             const dateMatches = loadDateOnly.getTime() === selectedDateOnly.getTime()
             
             console.log(`🗺️ Load ${load.REF_NUMBER} date comparison:`, {
               selectedDate: selectedDateOnly.toISOString().split('T')[0],
               loadDate: loadDateOnly.toISOString().split('T')[0],
               dateField: dateField,
+              isDefaultDate: isDefaultDate,
               matches: dateMatches,
               company: load.company_name?.trim()
             })
@@ -117,7 +161,10 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
         if (filteredLoads.length === 0) {
           console.log(`⚠️ No loads found for selected date: ${date.toISOString().split('T')[0]}`)
           console.log(`📅 Available load dates:`, data.loads
-            .filter((load: LoadData) => load.DEPART_DATE || load.pu_drop_date1)
+            .filter((load: LoadData) => {
+              const dateField = load.DEPART_DATE || load.pu_drop_date1
+              return dateField && dateField !== '1753-01-01T00:00:00.000Z' && dateField !== '1753-01-01'
+            })
             .map((load: LoadData) => new Date(load.DEPART_DATE || load.pu_drop_date1!).toISOString().split('T')[0])
             .filter((date: string, index: number, array: string[]) => array.indexOf(date) === index)
             .sort()

@@ -154,8 +154,25 @@ function formatTime(timeStr: string): string {
 /**
  * Format date and time combination
  */
-function formatDateTime(dateStr: string, timeStr: string): string {
+function formatDateTime(dateStr: string, timeStr: string, isDeliveryDate: boolean = false): string {
   if (!dateStr || dateStr === 'TBD') return 'TBD'
+  
+  // Check if this is the default SQL Server date (1753-01-01)
+  const isDefaultDate = dateStr === '1753-01-01T00:00:00.000Z' || dateStr === '1753-01-01'
+  
+  if (isDefaultDate) {
+    if (isDeliveryDate) {
+      return 'TBD' // Delivery dates with default date show as TBD
+    } else {
+      // Start dates with default date show as current date
+      const currentDate = new Date()
+      const formattedDate = currentDate.toISOString().split('T')[0] // YYYY-MM-DD
+      const formattedTime = formatTime(timeStr)
+      
+      if (formattedTime === 'TBD') return formattedDate
+      return `${formattedDate} ${formattedTime}`
+    }
+  }
   
   try {
     const date = new Date(dateStr)
@@ -181,14 +198,14 @@ export function formatLoadInfo(load: LoadData) {
       : (load.origin_city && load.origin_state 
         ? `${load.origin_city}, ${load.origin_state}` 
         : 'Location TBD'),
-    startDate: formatDateTime(load.pu_drop_date1 || '', load.pu_drop_time1 || ''),
+    startDate: formatDateTime(load.pu_drop_date1 || '', load.pu_drop_time1 || '', false),
     startTime: formatTime(load.pu_drop_time1 || ''),
     endLocation: load.TOCITY && load.TOSTATE 
       ? `${load.TOCITY.trim()}, ${load.TOSTATE.trim()}` 
       : (load.destination_city && load.destination_state 
         ? `${load.destination_city}, ${load.destination_state}` 
         : 'Location TBD'),
-    endDate: formatDateTime(load.dropoff_date || '', load.dropoff_time || ''),
+    endDate: formatDateTime(load.dropoff_date || '', load.dropoff_time || '', true),
     endTime: formatTime(load.dropoff_time || ''),
     dispatcher: load.dispatcher_initials || 'N/A',
     notes: load.notes || 'No notes available',

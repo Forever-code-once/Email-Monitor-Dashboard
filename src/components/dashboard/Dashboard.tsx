@@ -222,7 +222,7 @@ export function Dashboard() {
       wsClient.on('error', (error: any) => {
         console.error('❌ WebSocket error:', error)
         setWsConnected(false)
-        setError(`WebSocket connection error: ${error.message || 'Connection failed'}`)
+        showNotification(`WebSocket connection error: ${error.message || 'Connection failed'}`, 'error', 5000)
       })
 
       wsClient.on('databaseUpdate', (data: any) => {
@@ -246,14 +246,14 @@ export function Dashboard() {
       wsClient.on('maxReconnectAttemptsReached', () => {
         console.error('❌ Failed to reconnect to WebSocket server')
         setWsConnected(false)
-        setError('⚠️ Lost connection to real-time server. Using manual refresh only.')
+        showNotification('Lost connection to real-time server. Using manual refresh only.', 'warning', 6000)
       })
 
       // Add a fallback for when WebSocket fails
       const fallbackTimeout = setTimeout(() => {
         if (!wsConnected) {
           console.log('⚠️ WebSocket connection failed, using manual refresh mode')
-          setError('⚠️ Real-time connection failed. Using manual refresh mode.')
+          showNotification('Real-time connection failed. Using manual refresh mode.', 'warning', 6000)
         }
       }, 15000) // 15 second fallback
 
@@ -714,7 +714,7 @@ export function Dashboard() {
       
       wsClient.on('error', (error) => {
         console.error('❌ Manual connection error:', error)
-        setError(`❌ WebSocket error: ${error.message}`)
+        showNotification(`WebSocket error: ${error.message}`, 'error', 5000)
       })
       
       wsClient.on('disconnection', (data) => {
@@ -723,7 +723,7 @@ export function Dashboard() {
       })
       
       wsClient.connect()
-      setError('🔌 Creating new WebSocket connection...')
+              showNotification('Creating new WebSocket connection...', 'info', 3000)
       return
     }
     
@@ -734,7 +734,7 @@ export function Dashboard() {
     if (!connectionStatus.connected) {
       console.log('🔌 WebSocket not connected, attempting to reconnect...')
       wsClientRef.current.connect()
-      setError('🔌 Reconnecting WebSocket...')
+      showNotification('Reconnecting WebSocket...', 'info', 3000)
       
       // Wait a bit and try again
       setTimeout(() => {
@@ -743,7 +743,7 @@ export function Dashboard() {
         if (newStatus?.connected) {
           showNotification('WebSocket reconnected!', 'success', 3000)
         } else {
-          setError('❌ WebSocket reconnection failed')
+          showNotification('WebSocket reconnection failed', 'error', 5000)
         }
       }, 2000)
       return
