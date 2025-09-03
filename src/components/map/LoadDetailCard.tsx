@@ -105,12 +105,6 @@ export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardPro
               Available Loads
             </Typography>
           </Box>
-          <Chip 
-            label={isGroupedPin ? load.date : loadInfo.startDate} 
-            color="primary" 
-            variant="outlined"
-            size="small"
-          />
         </Box>
 
         {/* Loads List */}

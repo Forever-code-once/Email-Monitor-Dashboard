@@ -46,6 +46,7 @@ export function Dashboard() {
   const [hasActiveAccount, setHasActiveAccount] = useState(false)
   const [viewMode, setViewMode] = useState<'customers' | 'senders' | 'raw' | 'map'>('map')
   const [wsConnected, setWsConnected] = useState(false)
+  const [mapRefreshTrigger, setMapRefreshTrigger] = useState(0)
   
   const wsClientRef = useRef<EmailWebSocketClient | null>(null)
   
@@ -134,6 +135,10 @@ export function Dashboard() {
             })
             
             console.log('✅ Access token sent to WebSocket server')
+            
+            // Request real-time monitoring for email and load changes
+            wsClient.requestRealtimeMonitoring()
+            console.log('🔄 Real-time monitoring requested')
           } else {
             console.error('❌ No active account found')
           }
@@ -247,6 +252,35 @@ export function Dashboard() {
         console.error('❌ Failed to reconnect to WebSocket server')
         setWsConnected(false)
         showNotification('Lost connection to real-time server. Using manual refresh only.', 'warning', 6000)
+      })
+
+      // Real-time monitoring event handlers
+      wsClient.on('emailDeleted', (data: any) => {
+        console.log('🗑️ Email deleted, refreshing truck data:', data.emailId)
+        showNotification('Email deleted, updating truck data...', 'info', 3000)
+        // Trigger map refresh for truck data
+        setMapRefreshTrigger(prev => prev + 1)
+      })
+
+      wsClient.on('truckDataUpdated', (data: any) => {
+        console.log('🚛 Truck data updated via WebSocket:', data)
+        showNotification('Truck data updated', 'success', 3000)
+        // Trigger map refresh for truck data
+        setMapRefreshTrigger(prev => prev + 1)
+      })
+
+      wsClient.on('loadDataUpdated', (data: any) => {
+        console.log('📦 Load data updated via WebSocket:', data)
+        showNotification('Load data updated', 'success', 3000)
+        // Trigger map refresh for load data
+        setMapRefreshTrigger(prev => prev + 1)
+      })
+
+      wsClient.on('mapRefreshRequired', (data: any) => {
+        console.log('🗺️ Map refresh required via WebSocket:', data)
+        showNotification('Map data updated', 'info', 3000)
+        // Trigger map refresh
+        setMapRefreshTrigger(prev => prev + 1)
       })
 
       // Add a fallback for when WebSocket fails
@@ -1089,6 +1123,7 @@ export function Dashboard() {
             <MapView
               customerCards={customerCards}
               onViewEmails={handleViewEmails}
+              mapRefreshTrigger={mapRefreshTrigger}
             />
           ) : viewMode === 'customers' ? (
             customerCards.length > 0 ? (

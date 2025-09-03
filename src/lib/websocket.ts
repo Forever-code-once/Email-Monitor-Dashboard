@@ -1,7 +1,7 @@
 import { EmailMessage } from '@/types'
 
 export type WebSocketMessage = {
-  type: 'NEW_EMAIL' | 'EMAIL_UPDATE' | 'CONNECTION_STATUS' | 'START_EMAIL_MONITORING' | 'STOP_EMAIL_MONITORING'
+  type: 'NEW_EMAIL' | 'EMAIL_UPDATE' | 'EMAIL_DELETED' | 'TRUCK_DATA_UPDATED' | 'LOAD_DATA_UPDATED' | 'CONNECTION_STATUS' | 'START_EMAIL_MONITORING' | 'STOP_EMAIL_MONITORING' | 'MAP_REFRESH_REQUIRED'
   data: any
 }
 
@@ -106,6 +106,29 @@ export class EmailWebSocketClient {
           aiProcessed: message.data.aiProcessed,
           timestamp: message.data.timestamp
         })
+        break
+        
+      case 'EMAIL_DELETED':
+        console.log('🗑️ Email deleted:', message.data.emailId)
+        this.emit('emailDeleted', {
+          emailId: message.data.emailId,
+          timestamp: message.data.timestamp
+        })
+        break
+        
+      case 'TRUCK_DATA_UPDATED':
+        console.log('🚛 Truck data updated:', message.data)
+        this.emit('truckDataUpdated', message.data)
+        break
+        
+      case 'LOAD_DATA_UPDATED':
+        console.log('📦 Load data updated:', message.data)
+        this.emit('loadDataUpdated', message.data)
+        break
+        
+      case 'MAP_REFRESH_REQUIRED':
+        console.log('🗺️ Map refresh required:', message.data)
+        this.emit('mapRefreshRequired', message.data)
         break
         
       case 'MONITORING_STATUS':
@@ -230,6 +253,28 @@ export class EmailWebSocketClient {
     this.send({
       type: 'REQUEST_DATABASE_UPDATE',
       data: {}
+    })
+  }
+
+  // Request real-time monitoring for email and load changes
+  requestRealtimeMonitoring() {
+    this.send({
+      type: 'REQUEST_REALTIME_MONITORING',
+      data: {
+        monitorEmails: true,
+        monitorLoads: true,
+        monitorTrucks: true
+      }
+    })
+  }
+
+  // Request map refresh
+  requestMapRefresh() {
+    this.send({
+      type: 'REQUEST_MAP_REFRESH',
+      data: {
+        timestamp: new Date().toISOString()
+      }
     })
   }
 

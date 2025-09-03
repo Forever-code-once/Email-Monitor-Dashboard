@@ -14,9 +14,10 @@ import { convertLoadsToPins } from '@/lib/loadGeocoding'
 interface MapViewProps {
   customerCards: any[] // Using existing customer cards data
   onViewEmails?: (customerEmail: string) => void
+  mapRefreshTrigger?: number
 }
 
-export function MapView({ customerCards, onViewEmails }: MapViewProps) {
+export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: MapViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null)
   
@@ -192,6 +193,8 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
       fetchAndCreateLoadPins(selectedDate, dateRange || undefined)
     }
   }, [selectedDate, dateRange, fetchAndCreateLoadPins, initialized])
+
+
 
   // Get all available dates from customer cards
   const availableDates = useCallback(() => {
@@ -524,6 +527,16 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
   useEffect(() => {
     preCacheCommonCities()
   }, [])
+
+  // Handle real-time map refresh trigger
+  useEffect(() => {
+    if (mapRefreshTrigger > 0 && initialized) {
+      console.log('🔄 Real-time map refresh triggered:', mapRefreshTrigger)
+      // Refresh both truck pins and load pins
+      createMapPins(selectedDate, dateRange || undefined)
+      fetchAndCreateLoadPins(selectedDate, dateRange || undefined)
+    }
+  }, [mapRefreshTrigger, initialized, selectedDate, dateRange, createMapPins, fetchAndCreateLoadPins])
 
   const handlePreviousDay = () => {
     if (!isNaN(selectedDate.getTime())) {
