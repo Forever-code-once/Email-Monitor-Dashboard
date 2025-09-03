@@ -73,6 +73,7 @@ export interface LoadData {
   // API response fields (primary)
   REF_NUMBER?: number
   company_name?: string
+  DEPART_DATE?: string
   use_depart_date?: string
   pu_drop_date1?: string
   pu_drop_time1?: string

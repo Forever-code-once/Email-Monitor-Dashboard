@@ -70,14 +70,16 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
         
         // Filter loads by date range or selected date
         const filteredLoads = data.loads.filter((load: LoadData) => {
-          if (!load.pu_drop_date1) {
+          // Use DEPART_DATE as the primary date field for filtering
+          const dateField = load.DEPART_DATE || load.pu_drop_date1
+          if (!dateField) {
             console.log(`⚠️ Load ${load.REF_NUMBER} has no start date, excluding`)
             return false
           }
           
-          const loadDate = new Date(load.pu_drop_date1)
+          const loadDate = new Date(dateField)
           if (isNaN(loadDate.getTime())) {
-            console.log(`⚠️ Load ${load.REF_NUMBER} has invalid date: ${load.pu_drop_date1}`)
+            console.log(`⚠️ Load ${load.REF_NUMBER} has invalid date: ${dateField}`)
             return false
           }
           
@@ -85,6 +87,7 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
             const matches = loadDate >= range.start && loadDate <= range.end
             console.log(`🗺️ Load ${load.REF_NUMBER} date range check:`, {
               loadDate: loadDate.toISOString().split('T')[0],
+              dateField: dateField,
               rangeStart: range.start.toISOString().split('T')[0],
               rangeEnd: range.end.toISOString().split('T')[0],
               matches
@@ -99,6 +102,7 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
             console.log(`🗺️ Load ${load.REF_NUMBER} date comparison:`, {
               selectedDate: selectedDateOnly.toISOString().split('T')[0],
               loadDate: loadDateOnly.toISOString().split('T')[0],
+              dateField: dateField,
               matches: dateMatches,
               company: load.company_name?.trim()
             })
@@ -113,8 +117,8 @@ export function MapView({ customerCards, onViewEmails }: MapViewProps) {
         if (filteredLoads.length === 0) {
           console.log(`⚠️ No loads found for selected date: ${date.toISOString().split('T')[0]}`)
           console.log(`📅 Available load dates:`, data.loads
-            .filter((load: LoadData) => load.pu_drop_date1)
-            .map((load: LoadData) => new Date(load.pu_drop_date1!).toISOString().split('T')[0])
+            .filter((load: LoadData) => load.DEPART_DATE || load.pu_drop_date1)
+            .map((load: LoadData) => new Date(load.DEPART_DATE || load.pu_drop_date1!).toISOString().split('T')[0])
             .filter((date: string, index: number, array: string[]) => array.indexOf(date) === index)
             .sort()
           )
