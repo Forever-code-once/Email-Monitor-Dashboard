@@ -29,6 +29,7 @@ import {
   Notes,
   ExpandMore,
   ExpandLess,
+  Inventory,
 } from '@mui/icons-material'
 import { LoadData } from '@/types'
 import { formatLoadInfo } from '@/lib/loadGeocoding'
@@ -137,7 +138,7 @@ export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardPro
                 return (
                   <ListItem key={`${loadItem.REF_NUMBER}-${index}`} sx={{ pl: 4, py: 1 }}>
                     <ListItemIcon>
-                      <LocalShipping sx={{ color: 'text.secondary', fontSize: 16 }} />
+                      <Inventory sx={{ color: 'text.secondary', fontSize: 16 }} />
                     </ListItemIcon>
                     <ListItemText
                       primary={
@@ -155,6 +156,12 @@ export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardPro
                             <Schedule sx={{ fontSize: 14, color: 'text.secondary' }} />
                             <Typography variant="caption" color="text.secondary">
                               Pickup: {itemInfo.startDate}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                            <Schedule sx={{ fontSize: 14, color: 'text.secondary' }} />
+                            <Typography variant="caption" color="text.secondary">
+                              Delivery: {itemInfo.endDate}
                             </Typography>
                           </Box>
                         </Box>
