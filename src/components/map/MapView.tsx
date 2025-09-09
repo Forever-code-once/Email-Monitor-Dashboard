@@ -31,9 +31,11 @@ interface MapViewProps {
   customerCards: any[] // Using existing customer cards data
   onViewEmails?: (customerEmail: string) => void
   mapRefreshTrigger?: number
+  onDateChange?: (date: Date) => void
+  onLoadsCountChange?: (count: number) => void
 }
 
-export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: MapViewProps) {
+export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, onDateChange, onLoadsCountChange }: MapViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null)
   
@@ -293,6 +295,20 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: 
       fetchAndCreateLoadPins(selectedDate, dateRange || undefined)
     }
   }, [selectedDate, dateRange, fetchAndCreateLoadPins, initialized])
+
+  // Notify parent component when selected date changes
+  useEffect(() => {
+    if (onDateChange) {
+      onDateChange(selectedDate)
+    }
+  }, [selectedDate, onDateChange])
+
+  // Notify parent component when loads count changes
+  useEffect(() => {
+    if (onLoadsCountChange) {
+      onLoadsCountChange(loadPins.length)
+    }
+  }, [loadPins.length, onLoadsCountChange])
 
 
 

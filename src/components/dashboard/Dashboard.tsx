@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useMsal, useIsAuthenticated } from '@azure/msal-react'
 import {
   Box,
@@ -48,6 +48,10 @@ export function Dashboard() {
   const [viewMode, setViewMode] = useState<'customers' | 'senders' | 'raw' | 'map'>('map')
   const [wsConnected, setWsConnected] = useState(false)
   const [mapRefreshTrigger, setMapRefreshTrigger] = useState(0)
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [loadsCount, setLoadsCount] = useState(0)
+  const [filteredTrucksCount, setFilteredTrucksCount] = useState(0)
+  const [filteredCustomersCount, setFilteredCustomersCount] = useState(0)
   
   const wsClientRef = useRef<EmailWebSocketClient | null>(null)
   
@@ -956,6 +960,50 @@ export function Dashboard() {
     setCustomerEmails([])
   }
 
+  const handleDateChange = (date: Date) => {
+    setSelectedDate(date)
+  }
+
+  const handleLoadsCountChange = (count: number) => {
+    setLoadsCount(count)
+  }
+
+  // Calculate filtered trucks and customers count for selected date
+  const calculateFilteredCounts = useCallback(() => {
+    if (!selectedDate) return
+
+    const selectedDateStr = selectedDate.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit'
+    })
+
+    let trucksCount = 0
+    let customersCount = 0
+    const customersWithTrucks = new Set<string>()
+
+    customerCards.forEach(card => {
+      let hasTrucksForDate = false
+      card.trucks.forEach((truck: any) => {
+        if (truck.date === selectedDateStr) {
+          trucksCount++
+          hasTrucksForDate = true
+        }
+      })
+      if (hasTrucksForDate) {
+        customersWithTrucks.add(card.customerEmail)
+      }
+    })
+
+    customersCount = customersWithTrucks.size
+    setFilteredTrucksCount(trucksCount)
+    setFilteredCustomersCount(customersCount)
+  }, [selectedDate, customerCards])
+
+  // Calculate filtered counts when selected date or customer cards change
+  useEffect(() => {
+    calculateFilteredCounts()
+  }, [calculateFilteredCounts])
+
   // Show loading state while authentication is being established
   if (!isAuthenticated || !hasActiveAccount) {
     return (
@@ -1087,7 +1135,7 @@ export function Dashboard() {
               {viewMode === 'map' ? (
                 <>
                   <Typography variant="body1" color="text.secondary">
-                    {customerCards.length} customers • {totalTrucks} trucks available • Interactive map view
+                    {filteredCustomersCount} customers • {filteredTrucksCount} trucks available • {loadsCount} loads available
                   </Typography>
                   {totalCheckedTrucks > 0 && (
                     <Chip 
@@ -1100,7 +1148,7 @@ export function Dashboard() {
               ) : viewMode === 'customers' ? (
                 <>
                   <Typography variant="body1" color="text.secondary">
-                    {customerCards.length} customers • {totalTrucks} trucks available
+                    {filteredCustomersCount} customers • {filteredTrucksCount} trucks available
                   </Typography>
                   {totalCheckedTrucks > 0 && (
                     <Chip 
@@ -1140,6 +1188,8 @@ export function Dashboard() {
               customerCards={customerCards}
               onViewEmails={handleViewEmails}
               mapRefreshTrigger={mapRefreshTrigger}
+              onDateChange={handleDateChange}
+              onLoadsCountChange={handleLoadsCountChange}
             />
           ) : viewMode === 'customers' ? (
             customerCards.length > 0 ? (
