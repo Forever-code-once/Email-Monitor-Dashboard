@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
+// Simple in-memory cache for AI processing results
+const aiCache = new Map<string, any>()
+
 // Lazy initialize OpenAI client to avoid build-time errors
 function getOpenAIClient() {
   if (!process.env.OPENAI_API_KEY) {
@@ -32,6 +35,15 @@ function truncateEmailContent(content: string, maxLength: number = 8000): string
 export async function POST(request: NextRequest) {
   try {
     const { subject, body, from } = await request.json()
+
+    // Create cache key based on email content
+    const cacheKey = `${from.address}-${subject}-${body.substring(0, 1000)}`
+    
+    // Check cache first
+    if (aiCache.has(cacheKey)) {
+      console.log('📧 Using cached AI result for:', from.address, subject)
+      return NextResponse.json(aiCache.get(cacheKey))
+    }
 
               console.log('📧 Processing email from:', from.name, from.address)
      console.log('📧 Subject:', subject)
@@ -167,7 +179,7 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
           content: prompt
         }
       ],
-      temperature: 0.1,
+      temperature: 0,
       max_tokens: 10000, // Increased significantly to handle long truck lists
     })
 
@@ -327,6 +339,10 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
        }))
      })
 
+    // Cache the result
+    aiCache.set(cacheKey, parsedData)
+    console.log('📧 Cached AI result for:', from.address, subject)
+
     return NextResponse.json(parsedData)
   } catch (error) {
     console.error('Error parsing email with AI:', error)
@@ -344,7 +360,7 @@ Return JSON: {"customer":"Name","customerEmail":"email","trucks":[{"date":"Day M
         const completion = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
           messages: [{ role: "user", content: shortPrompt }],
-          temperature: 0.1,
+          temperature: 0,
           max_tokens: 300,
         })
 

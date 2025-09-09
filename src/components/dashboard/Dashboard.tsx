@@ -437,7 +437,21 @@ export function Dashboard() {
       setCustomerCards(finalCustomerCardsArray)
       
       const totalTrucks = finalCustomerCardsArray.reduce((sum, card) => sum + card.trucks.length, 0)
-      console.log(`AI Processing completed: ${finalCustomerCardsArray.length} customers, ${totalTrucks} trucks from ${successCount}/${processedCount} emails`)
+      console.log(`🤖 AI Processing completed: ${finalCustomerCardsArray.length} customers, ${totalTrucks} trucks from ${successCount}/${processedCount} emails`)
+      
+      // Detailed logging for debugging truck count variations
+      console.log('📊 Detailed truck count breakdown:')
+      finalCustomerCardsArray.forEach((card, index) => {
+        console.log(`  Customer ${index + 1}: ${card.customer} (${card.customerEmail}) - ${card.trucks.length} trucks`)
+        if (card.trucks.length > 0) {
+          const locationGroups = new Map<string, number>()
+          card.trucks.forEach(truck => {
+            const key = `${truck.city}, ${truck.state}`
+            locationGroups.set(key, (locationGroups.get(key) || 0) + 1)
+          })
+          console.log(`    Locations:`, Array.from(locationGroups.entries()).map(([loc, count]) => `${loc}(${count})`).join(', '))
+        }
+      })
       
       // Debug: Log all customer cards created
       console.log('🔍 Final customer cards created:', finalCustomerCardsArray.map(card => ({
