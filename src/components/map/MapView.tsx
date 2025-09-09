@@ -337,9 +337,11 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
   // Notify parent component when loads count changes
   useEffect(() => {
     if (onLoadsCountChange) {
-      onLoadsCountChange(loadPins.length)
+      // Calculate total individual loads across all pins, not just number of pins
+      const totalLoads = loadPins.reduce((sum, pin) => sum + pin.loadCount, 0)
+      onLoadsCountChange(totalLoads)
     }
-  }, [loadPins.length, onLoadsCountChange])
+  }, [loadPins, onLoadsCountChange])
 
 
 
