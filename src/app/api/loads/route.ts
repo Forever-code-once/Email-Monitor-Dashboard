@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { databaseQueries } from '@/lib/database'
 
-export const dynamic = 'force-dynamic'
+// Enable caching for better performance
+export const revalidate = 300 // Revalidate every 5 minutes
+export const dynamic = 'auto'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,12 +13,18 @@ export async function GET(request: NextRequest) {
     
     console.log(`✅ Found ${loads.length} available loads`)
     
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       loads,
       count: loads.length,
       timestamp: new Date().toISOString()
     })
+    
+    // Add cache headers for browser caching
+    response.headers.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
+    response.headers.set('ETag', `"loads-${loads.length}-${Date.now()}"`)
+    
+    return response
     
   } catch (error) {
     console.error('❌ Error fetching loads:', error)

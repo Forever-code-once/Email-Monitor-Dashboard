@@ -54,6 +54,13 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: 
   const [selectedPin, setSelectedPin] = useState<AnyMapPin | null>(null)
   const [detailCardOpen, setDetailCardOpen] = useState(false)
   const [initialized, setInitialized] = useState(false)
+  
+  // Cache for loads data
+  const [loadsCache, setLoadsCache] = useState<{
+    data: LoadData[]
+    timestamp: number
+    expiresAt: number
+  } | null>(null)
 
   // Debug: Log customer cards data
   useEffect(() => {
@@ -68,6 +75,59 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: 
     })
   }, [customerCards])
 
+  // Check if cache is valid
+  const isCacheValid = useCallback(() => {
+    if (!loadsCache) return false
+    const now = Date.now()
+    return now < loadsCache.expiresAt
+  }, [loadsCache])
+
+  // Load from cache or localStorage
+  const loadFromCache = useCallback(() => {
+    // First check in-memory cache
+    if (isCacheValid()) {
+      console.log('🗺️ Using in-memory cache for loads data')
+      return loadsCache!.data
+    }
+
+    // Try localStorage as fallback
+    try {
+      const cached = localStorage.getItem('loads-cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        const now = Date.now()
+        if (now < parsed.expiresAt) {
+          console.log('🗺️ Using localStorage cache for loads data')
+          setLoadsCache(parsed)
+          return parsed.data
+        } else {
+          console.log('🗺️ localStorage cache expired, removing')
+          localStorage.removeItem('loads-cache')
+        }
+      }
+    } catch (error) {
+      console.warn('🗺️ Error loading from localStorage cache:', error)
+    }
+
+    return null
+  }, [loadsCache, isCacheValid])
+
+  // Save to cache and localStorage
+  const saveToCache = useCallback((data: LoadData[]) => {
+    const now = Date.now()
+    const expiresAt = now + (5 * 60 * 1000) // 5 minutes
+    const cacheData = { data, timestamp: now, expiresAt }
+    
+    setLoadsCache(cacheData)
+    
+    try {
+      localStorage.setItem('loads-cache', JSON.stringify(cacheData))
+      console.log('🗺️ Saved loads data to cache and localStorage')
+    } catch (error) {
+      console.warn('🗺️ Error saving to localStorage cache:', error)
+    }
+  }, [])
+
   // Fetch loads from database and create pins with date filtering
   const fetchAndCreateLoadPins = useCallback(async (date: Date, range?: { start: Date; end: Date }) => {
     setLoadingLoads(true)
@@ -79,14 +139,38 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: 
         day: date.getDate(),
         hasRange: !!range
       })
-      const response = await fetch('/api/loads')
-      const data = await response.json()
+
+      // Try to load from cache first
+      const cachedData = loadFromCache()
+      let loads: LoadData[] = []
+
+      if (cachedData) {
+        loads = cachedData
+        console.log(`🗺️ Using cached loads data: ${loads.length} loads`)
+      } else {
+        // Fetch from API if no valid cache
+        console.log('🗺️ No valid cache, fetching from API...')
+        const response = await fetch('/api/loads')
+        const data = await response.json()
+        
+        if (data.success && data.loads) {
+          loads = data.loads
+          console.log(`🗺️ Fetched ${loads.length} loads from API`)
+          
+          // Save to cache
+          saveToCache(loads)
+        } else {
+          console.error('❌ Failed to fetch loads:', data.error)
+          setLoadPins([])
+          return
+        }
+      }
       
-      if (data.success && data.loads) {
-        console.log(`🗺️ Found ${data.loads.length} total loads from database`)
+      if (loads.length > 0) {
+        console.log(`🗺️ Processing ${loads.length} loads for filtering`)
         
         // Filter loads by date range or selected date
-        const filteredLoads = data.loads.filter((load: LoadData) => {
+        const filteredLoads = loads.filter((load: LoadData) => {
           // Use DEPART_DATE as the primary date field for filtering
           const dateField = load.DEPART_DATE || load.pu_drop_date1
           if (!dateField) {
@@ -177,7 +261,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: 
         // If no loads found for the selected date, show available dates
         if (filteredLoads.length === 0) {
           console.log(`⚠️ No loads found for selected date: ${date.toISOString().split('T')[0]}`)
-          console.log(`📅 Available load dates:`, data.loads
+          console.log(`📅 Available load dates:`, loads
             .filter((load: LoadData) => {
               const dateField = load.DEPART_DATE || load.pu_drop_date1
               return dateField && dateField !== '1753-01-01T00:00:00.000Z' && dateField !== '1753-01-01'
@@ -192,7 +276,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: 
         setLoadPins(loadPins)
         console.log(`🗺️ Created ${loadPins.length} load pins`)
       } else {
-        console.error('❌ Failed to fetch loads:', data.error)
+        console.log('🗺️ No loads available')
         setLoadPins([])
       }
     } catch (error) {
@@ -201,7 +285,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: 
     } finally {
       setLoadingLoads(false)
     }
-  }, [])
+  }, [loadFromCache, saveToCache])
 
   // Fetch loads when date changes
   useEffect(() => {
