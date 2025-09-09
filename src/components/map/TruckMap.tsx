@@ -383,7 +383,8 @@ export function TruckMap({
                   borderRadius: '4px',
                   padding: '4px 8px',
                   cursor: 'pointer',
-                  fontSize: '12px'
+                  fontSize: '12px',
+                  color: darkMode ? '#ffffff' : '#000000'
                 }}
               >
                 Clear Measurement
