@@ -293,24 +293,46 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
           />
         </Box>
 
-                 <List sx={{ bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+                 <List sx={{ 
+                   bgcolor: darkMode ? 'grey.900' : 'background.paper', 
+                   borderRadius: 1, 
+                   border: 1, 
+                   borderColor: darkMode ? 'grey.700' : 'divider' 
+                 }}>
            {customerGroups.map((customerGroup, customerIndex) => (
              <Box key={`${customerGroup.customer}-${customerGroup.email}`}>
                {/* Customer Header */}
-               <ListItem sx={{ py: 1, bgcolor: 'grey.50' }}>
+               <ListItem sx={{ 
+                 py: 1, 
+                 bgcolor: darkMode ? 'grey.800' : 'grey.50',
+                 color: darkMode ? 'text.primary' : 'text.primary'
+               }}>
                  <ListItemText
                    primary={
                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                       <Business sx={{ color: 'primary.main', fontSize: 16 }} />
-                       <Typography variant="subtitle2" fontWeight="medium">
+                       <Business sx={{ 
+                         color: darkMode ? 'primary.light' : 'primary.main', 
+                         fontSize: 16 
+                       }} />
+                       <Typography 
+                         variant="subtitle2" 
+                         fontWeight="medium"
+                         sx={{ color: darkMode ? 'text.primary' : 'text.primary' }}
+                       >
                          {customerGroup.customer}
                        </Typography>
                      </Box>
                    }
                    secondary={
                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                       <Email sx={{ color: 'text.secondary', fontSize: 14 }} />
-                       <Typography variant="body2" color="text.secondary">
+                       <Email sx={{ 
+                         color: darkMode ? 'text.secondary' : 'text.secondary', 
+                         fontSize: 14 
+                       }} />
+                       <Typography 
+                         variant="body2" 
+                         sx={{ color: darkMode ? 'text.secondary' : 'text.secondary' }}
+                       >
                          {customerGroup.email}
                        </Typography>
                      </Box>

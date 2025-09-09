@@ -112,21 +112,44 @@ export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardPro
         </Box>
 
         {/* Loads List */}
-        <List sx={{ bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+        <List sx={{ 
+          bgcolor: darkMode ? 'grey.900' : 'background.paper', 
+          borderRadius: 1, 
+          border: 1, 
+          borderColor: darkMode ? 'grey.700' : 'divider' 
+        }}>
           {Object.entries(companyGroups).map(([company, companyLoads]: [string, any]) => (
             <Box key={company}>
               {/* Company Header */}
-              <ListItem sx={{ py: 1, bgcolor: 'grey.50' }}>
+              <ListItem sx={{ 
+                py: 1, 
+                bgcolor: darkMode ? 'grey.800' : 'grey.50',
+                color: darkMode ? 'text.primary' : 'text.primary'
+              }}>
                 <ListItemText
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Business sx={{ color: 'primary.main', fontSize: 16 }} />
-                      <Typography variant="subtitle2" fontWeight="bold">
+                      <Business sx={{ 
+                        color: darkMode ? 'primary.light' : 'primary.main', 
+                        fontSize: 16 
+                      }} />
+                      <Typography 
+                        variant="subtitle2" 
+                        fontWeight="bold"
+                        sx={{ color: darkMode ? 'text.primary' : 'text.primary' }}
+                      >
                         {company}
                       </Typography>
                     </Box>
                   }
-                  secondary={`${companyLoads.length} load${companyLoads.length !== 1 ? 's' : ''}`}
+                  secondary={
+                    <Typography 
+                      variant="body2"
+                      sx={{ color: darkMode ? 'text.secondary' : 'text.secondary' }}
+                    >
+                      {`${companyLoads.length} load${companyLoads.length !== 1 ? 's' : ''}`}
+                    </Typography>
+                  }
                 />
               </ListItem>
               
