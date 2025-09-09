@@ -148,6 +148,17 @@ TABLE FORMAT:
 08/04/2025 | 53R | Mechanicsville | VA | MN
 08/07/2025 | 53R | Fort Mill | SC | MN"
 
+SPECIAL DATE/TIME FORMAT (9/08 AM, 9/09 AM - DAY/HOUR format):
+"LOCATION | DATE / TIME | DESIRED DESTINATION | TRAILER TYPE
+RANCHO CUCAMONGA, CA | 9/08 AM | Z0, Z1, Z2, Z3, Z4, Z5, Z6 | 53' DRY VAN
+HAINESPORT, NJ | 9/08 AM | OPEN | 53' DRY VAN
+SAN JOSE, CA | 9/08 AM | SOUTHERN, CA | 53' DRY VAN
+RANCHO CUCAMONGA, CA | 9/09 AM | Z0, Z1, Z2, Z3, Z4, Z5, Z6 | 53' DRY VAN
+GLENDALE, AZ | 9/09 AM | SOUTHERN, CA | 53' DRY VAN"
+NOTE: 9/08 AM = September 9th, 8:00 AM (day 9, hour 8) -> convert to "09/09"
+NOTE: 9/09 AM = September 9th, 9:00 AM (day 9, hour 9) -> convert to "09/09"
+NOTE: 10/05 AM = September 10th, 5:00 AM (day 10, hour 5) -> convert to "09/10"
+
 Both should extract as separate truck entries for each location with their respective dates.
 
 Return ONLY valid JSON:
@@ -164,7 +175,7 @@ Return ONLY valid JSON:
   ]
 }
 
-Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this exact format: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": [{"date": "MM/DD", "city": "City Name", "state": "ST", "additionalInfo": "optional details"}]}. IMPORTANT: Use MM/DD format for dates (e.g., "8/12" not "2024-08-12") to match the original email format. If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
+Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this exact format: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": [{"date": "MM/DD", "city": "City Name", "state": "ST", "additionalInfo": "optional details"}]}. IMPORTANT: Use MM/DD format for dates (e.g., "8/12" not "2024-08-12") to match the original email format. CRITICAL: For special DATE/TIME format like "9/08 AM" or "9/09 AM", interpret as DAY/TIME format where first number is day, second is hour, assume current month. "9/08 AM" = September 9th, 8:00 AM -> convert to "09/09". "9/09 AM" = September 9th, 9:00 AM -> convert to "09/09". "10/05 AM" = September 10th, 5:00 AM -> convert to "09/10". If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
 
     const openai = getOpenAIClient()
     const completion = await openai.chat.completions.create({
@@ -172,7 +183,7 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       messages: [
                                    {
             role: "system",
-                        content: "You extract ALL truck availability data from emails. Handle simple formats (just date + location), table formats, and list formats. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. CRITICAL: Use EMAIL ADDRESS as the primary customer identifier since same names can send from different email addresses. EXAMPLE: 'John Grathwohl <jgrathwohl@outlook.com>' and 'John Grathwohl <jgrathwohl@conardtransportation.com>' are DIFFERENT customers. ALWAYS look for the original sender in the email body using patterns like 'From:', 'Original From:', 'Sent by:', 'Original sender:', etc. CRITICAL: Do NOT create duplicate entries - each unique truck should appear only once. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
+                        content: "You extract ALL truck availability data from emails. Handle simple formats (just date + location), table formats, and list formats. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. CRITICAL: Use EMAIL ADDRESS as the primary customer identifier since same names can send from different email addresses. EXAMPLE: 'John Grathwohl <jgrathwohl@outlook.com>' and 'John Grathwohl <jgrathwohl@conardtransportation.com>' are DIFFERENT customers. ALWAYS look for the original sender in the email body using patterns like 'From:', 'Original From:', 'Sent by:', 'Original sender:', etc. CRITICAL: Do NOT create duplicate entries - each unique truck should appear only once. IMPORTANT: Handle special DATE/TIME formats like '9/08 AM', '9/09 AM' - interpret as DAY/TIME format where first number is day, second is hour, assume current month. '9/08 AM' = September 9th, 8:00 AM -> convert to '09/09'. '9/09 AM' = September 9th, 9:00 AM -> convert to '09/09'. '10/05 AM' = September 10th, 5:00 AM -> convert to '09/10'. Always use 2-digit month and day format. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
           },
         {
           role: "user",
