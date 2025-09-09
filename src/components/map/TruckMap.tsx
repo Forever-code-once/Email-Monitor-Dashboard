@@ -25,6 +25,17 @@ interface TruckMapProps {
   pins: MapPin[]
   loadPins?: LoadPin[]
   loading?: boolean
+  onLoadRightClick?: (loadPin: LoadPin) => void
+  onTruckRightClick?: (truckPin: MapPin) => void
+  selectedLoad?: LoadPin | null
+  selectedTruck?: MapPin | null
+  distanceMeasurement?: {
+    distance: number
+    unit: string
+    fromLoad: string
+    toTruck: string
+  } | null
+  onClearDistanceMeasurement?: () => void
 }
 
 export function TruckMap({ 
@@ -33,7 +44,13 @@ export function TruckMap({
   onPinClick, 
   pins, 
   loadPins = [],
-  loading = false 
+  loading = false,
+  onLoadRightClick,
+  onTruckRightClick,
+  selectedLoad,
+  selectedTruck,
+  distanceMeasurement,
+  onClearDistanceMeasurement
 }: TruckMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
@@ -95,17 +112,18 @@ export function TruckMap({
     map.current.setStyle(newStyle)
   }, [darkMode])
 
-  // Update pins when pins array changes
+  // Re-render markers when selection changes
   useEffect(() => {
-    if (!map.current) return
-
-    // Remove existing markers
+    if (!map.current || pins.length === 0) return
+    
+    // Re-render all markers to update selection styling
     markers.current.forEach(marker => marker.remove())
     markers.current.clear()
-
-    // Add truck markers
+    
+    // Re-add truck markers
     pins.forEach(pin => {
-      // Create truck marker element (blue circle with truck count)
+      const isSelected = selectedTruck && selectedTruck.id === pin.id
+      
       const markerElement = document.createElement('div')
       markerElement.className = 'custom-marker truck-marker'
       markerElement.innerHTML = `
@@ -120,16 +138,16 @@ export function TruckMap({
           justify-content: center;
           font-weight: bold;
           font-size: 12px;
-          border: 2px solid white;
+          border: 2px solid ${isSelected ? '#FF5722' : 'white'};
           box-shadow: 0 2px 4px rgba(0,0,0,0.3);
           cursor: pointer;
           transition: transform 0.2s;
-        " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+          ${isSelected ? 'transform: scale(1.3); z-index: 1000;' : ''}
+        " onmouseover="this.style.transform='${isSelected ? 'scale(1.4)' : 'scale(1.1)'}'" onmouseout="this.style.transform='${isSelected ? 'scale(1.3)' : 'scale(1)'}'">
           🚛
         </div>
       `
 
-      // Create popup
       const popup = new mapboxgl.Popup({
         offset: 25,
         closeButton: false,
@@ -148,24 +166,29 @@ export function TruckMap({
         </div>
       `)
 
-      // Create marker
       const marker = new mapboxgl.Marker(markerElement)
         .setLngLat([pin.longitude, pin.latitude])
         .setPopup(popup)
         .addTo(map.current!)
 
-      // Add click handler
       markerElement.addEventListener('click', () => {
         onPinClick(pin)
       })
 
-      // Store marker reference
+      markerElement.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+        if (onTruckRightClick) {
+          onTruckRightClick(pin)
+        }
+      })
+
       markers.current.set(pin.id, marker)
     })
 
-    // Add load markers (grouped by location like trucks)
+    // Re-add load markers
     loadPins.forEach(loadPin => {
-      // Create load marker element (orange square with package icon and count)
+      const isSelected = selectedLoad && selectedLoad.id === loadPin.id
+      
       const markerElement = document.createElement('div')
       markerElement.className = 'custom-marker load-marker'
       markerElement.innerHTML = `
@@ -180,16 +203,16 @@ export function TruckMap({
           justify-content: center;
           font-weight: bold;
           font-size: 12px;
-          border: 2px solid white;
+          border: 2px solid ${isSelected ? '#FF5722' : 'white'};
           box-shadow: 0 2px 4px rgba(0,0,0,0.3);
           cursor: pointer;
           transition: transform 0.2s;
-        " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+          ${isSelected ? 'transform: scale(1.3); z-index: 1000;' : ''}
+        " onmouseover="this.style.transform='${isSelected ? 'scale(1.4)' : 'scale(1.1)'}'" onmouseout="this.style.transform='${isSelected ? 'scale(1.3)' : 'scale(1)'}'">
           📦
         </div>
       `
 
-      // Create popup (matching truck popup format)
       const popup = new mapboxgl.Popup({
         offset: 25,
         closeButton: false,
@@ -208,22 +231,30 @@ export function TruckMap({
         </div>
       `)
 
-      // Create marker
       const marker = new mapboxgl.Marker(markerElement)
         .setLngLat([loadPin.longitude, loadPin.latitude])
         .setPopup(popup)
         .addTo(map.current!)
 
-      // Add click handler
       markerElement.addEventListener('click', () => {
         onPinClick(loadPin)
       })
 
-      // Store marker reference
+      markerElement.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+        if (onLoadRightClick) {
+          onLoadRightClick(loadPin)
+        }
+      })
+
       markers.current.set(loadPin.id, marker)
     })
+  }, [selectedLoad, selectedTruck, pins, loadPins, onPinClick, onTruckRightClick, onLoadRightClick])
 
-    // Fit map to show all pins if there are any
+  // Fit map to show all pins when pins change
+  useEffect(() => {
+    if (!map.current) return
+    
     const allPins = [...pins, ...loadPins]
     if (allPins.length > 0) {
       const bounds = new mapboxgl.LngLatBounds()
@@ -231,12 +262,12 @@ export function TruckMap({
         bounds.extend([pin.longitude, pin.latitude])
       })
       
-      map.current!.fitBounds(bounds, {
+      map.current.fitBounds(bounds, {
         padding: 50,
         maxZoom: 8
       })
     }
-  }, [pins, loadPins, onPinClick])
+  }, [pins, loadPins])
 
   // Add custom CSS for markers and popups
   useEffect(() => {
@@ -312,6 +343,90 @@ export function TruckMap({
           overflow: 'hidden'
         }} 
       />
+      
+      {/* Distance Measurement Display */}
+      {distanceMeasurement && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 20,
+            right: 20,
+            backgroundColor: 'background.paper',
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 2,
+            p: 2,
+            boxShadow: 2,
+            zIndex: 1000,
+            minWidth: 200
+          }}
+        >
+          <Typography variant="h6" color="primary" gutterBottom>
+            Distance Measurement
+          </Typography>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            From: {distanceMeasurement.fromLoad}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            To: {distanceMeasurement.toTruck}
+          </Typography>
+          <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold' }}>
+            {distanceMeasurement.distance} {distanceMeasurement.unit}
+          </Typography>
+          {onClearDistanceMeasurement && (
+            <Box sx={{ mt: 2 }}>
+              <button
+                onClick={onClearDistanceMeasurement}
+                style={{
+                  background: 'none',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                Clear Measurement
+              </button>
+            </Box>
+          )}
+        </Box>
+      )}
+      
+      {/* Selection Status */}
+      {(selectedLoad || selectedTruck) && (
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 20,
+            left: 20,
+            backgroundColor: 'background.paper',
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 2,
+            p: 2,
+            boxShadow: 2,
+            zIndex: 1000
+          }}
+        >
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Distance Measurement Mode
+          </Typography>
+          {selectedLoad && (
+            <Typography variant="body2" color="success.main">
+              ✓ Load selected: {selectedLoad.city}, {selectedLoad.state}
+            </Typography>
+          )}
+          {selectedTruck && (
+            <Typography variant="body2" color="info.main">
+              ✓ Truck selected: {selectedTruck.city}, {selectedTruck.state}
+            </Typography>
+          )}
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Right-click on {selectedLoad ? 'a truck' : 'a load'} to measure distance
+          </Typography>
+        </Box>
+      )}
       
       {pins.length === 0 && !loading && (
         <Box

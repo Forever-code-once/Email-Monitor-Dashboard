@@ -9,7 +9,7 @@ import { LoadDetailCard } from './LoadDetailCard'
 import { MapPin, AnyMapPin } from '@/types/map'
 import { TruckAvailability, LoadData } from '@/types'
 import { geocodeAddress, preCacheCommonCities } from '@/lib/geocoding'
-import { convertLoadsToPins } from '@/lib/loadGeocoding'
+import { convertLoadsToPins, LoadPin } from '@/lib/loadGeocoding'
 
 /**
  * Get the next business day (Monday-Friday)
@@ -27,6 +27,27 @@ function getNextBusinessDay(): Date {
   return nextDay
 }
 
+/**
+ * Calculate distance between two points using Haversine formula
+ */
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): { distance: number; unit: string } {
+  const R = 3959 // Earth's radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  const distance = R * c
+  
+  if (distance < 1) {
+    return { distance: distance * 5280, unit: 'ft' } // Convert to feet
+  } else {
+    return { distance: Math.round(distance * 10) / 10, unit: 'mi' } // Round to 1 decimal place
+  }
+}
+
 interface MapViewProps {
   customerCards: any[] // Using existing customer cards data
   onViewEmails?: (customerEmail: string) => void
@@ -38,6 +59,16 @@ interface MapViewProps {
 export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, onDateChange, onLoadsCountChange }: MapViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null)
+  
+  // Distance measurement state
+  const [selectedLoad, setSelectedLoad] = useState<LoadPin | null>(null)
+  const [selectedTruck, setSelectedTruck] = useState<MapPin | null>(null)
+  const [distanceMeasurement, setDistanceMeasurement] = useState<{
+    distance: number
+    unit: string
+    fromLoad: string
+    toTruck: string
+  } | null>(null)
   
   // Debug: Log selected date on initialization
   useEffect(() => {
@@ -700,6 +731,57 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     }
   }
 
+  // Distance measurement handlers
+  const handleLoadRightClick = (loadPin: LoadPin) => {
+    console.log('📏 Load right-clicked for distance measurement:', loadPin)
+    setSelectedLoad(loadPin)
+    
+    // If we have a selected truck, calculate distance immediately
+    if (selectedTruck) {
+      const distance = calculateDistance(
+        loadPin.latitude,
+        loadPin.longitude,
+        selectedTruck.latitude,
+        selectedTruck.longitude
+      )
+      
+      setDistanceMeasurement({
+        distance: distance.distance,
+        unit: distance.unit,
+        fromLoad: `${loadPin.city}, ${loadPin.state}`,
+        toTruck: `${selectedTruck.city}, ${selectedTruck.state}`
+      })
+    }
+  }
+
+  const handleTruckRightClick = (truckPin: MapPin) => {
+    console.log('📏 Truck right-clicked for distance measurement:', truckPin)
+    setSelectedTruck(truckPin)
+    
+    // If we have a selected load, calculate distance immediately
+    if (selectedLoad) {
+      const distance = calculateDistance(
+        selectedLoad.latitude,
+        selectedLoad.longitude,
+        truckPin.latitude,
+        truckPin.longitude
+      )
+      
+      setDistanceMeasurement({
+        distance: distance.distance,
+        unit: distance.unit,
+        fromLoad: `${selectedLoad.city}, ${selectedLoad.state}`,
+        toTruck: `${truckPin.city}, ${truckPin.state}`
+      })
+    }
+  }
+
+  const clearDistanceMeasurement = () => {
+    setSelectedLoad(null)
+    setSelectedTruck(null)
+    setDistanceMeasurement(null)
+  }
+
   const dates = availableDates()
 
   if (customerCards.length === 0) {
@@ -729,6 +811,12 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
           pins={pins}
           loadPins={loadPins}
           loading={loading || loadingLoads}
+          onLoadRightClick={handleLoadRightClick}
+          onTruckRightClick={handleTruckRightClick}
+          selectedLoad={selectedLoad}
+          selectedTruck={selectedTruck}
+          distanceMeasurement={distanceMeasurement}
+          onClearDistanceMeasurement={clearDistanceMeasurement}
         />
       
              {selectedPin && (
