@@ -72,8 +72,11 @@ export function TruckMap({
     // Add fullscreen control
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right')
 
-    // Add scale control
-    map.current.addControl(new mapboxgl.ScaleControl(), 'bottom-left')
+    // Add scale control with imperial units (miles/feet)
+    map.current.addControl(new mapboxgl.ScaleControl({
+      maxWidth: 100,
+      unit: 'imperial' // This ensures distances are displayed in miles and feet
+    }), 'bottom-left')
 
     // Cleanup on unmount
     return () => {

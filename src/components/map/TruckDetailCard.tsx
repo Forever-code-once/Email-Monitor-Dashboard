@@ -30,8 +30,10 @@ import {
 } from '@mui/icons-material'
 import { TruckDetailCardProps } from '@/types/map'
 import { TruckAvailability } from '@/types'
+import { useTheme } from '@/components/providers/ThemeProvider'
 
 export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmails }: TruckDetailCardProps) {
+  const { darkMode } = useTheme()
   const [visibleTrucks, setVisibleTrucks] = useState<TruckAvailability[]>([])
   const [checkedTrucks, setCheckedTrucks] = useState<Set<string>>(new Set())
 
@@ -248,7 +250,9 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
       PaperProps={{
         sx: {
           borderRadius: 2,
-          maxHeight: '80vh'
+          maxHeight: '80vh',
+          backgroundColor: darkMode ? '#1e1e1e' : '#ffffff',
+          color: darkMode ? '#ffffff' : '#000000'
         }
       }}
     >

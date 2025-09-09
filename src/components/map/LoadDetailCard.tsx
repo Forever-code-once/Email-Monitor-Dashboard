@@ -33,6 +33,7 @@ import {
 } from '@mui/icons-material'
 import { LoadData } from '@/types'
 import { formatLoadInfo } from '@/lib/loadGeocoding'
+import { useTheme } from '@/components/providers/ThemeProvider'
 
 interface LoadDetailCardProps {
   load: LoadData | any // Can be single load or grouped load pin
@@ -41,6 +42,7 @@ interface LoadDetailCardProps {
 }
 
 export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardProps) {
+  const { darkMode } = useTheme()
   const [expanded, setExpanded] = useState(false)
   
   // Handle both single load and grouped load pin structures
@@ -72,7 +74,9 @@ export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardPro
       PaperProps={{
         sx: {
           borderRadius: 2,
-          maxHeight: '80vh'
+          maxHeight: '80vh',
+          backgroundColor: darkMode ? '#1e1e1e' : '#ffffff',
+          color: darkMode ? '#ffffff' : '#000000'
         }
       }}
     >
