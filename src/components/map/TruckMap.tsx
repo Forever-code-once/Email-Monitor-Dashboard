@@ -10,6 +10,7 @@ import {
 } from '@mui/material'
 import { MapPin } from '@/types/map'
 import { LoadPin } from '@/lib/loadGeocoding'
+import { useTheme } from '@/components/providers/ThemeProvider'
 
 // Set Mapbox access token - use public token for client-side
 // For production, you'll need to either:
@@ -37,6 +38,7 @@ export function TruckMap({
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const markers = useRef<Map<string, mapboxgl.Marker>>(new Map())
+  const { darkMode } = useTheme()
 
   // Debug: Log Mapbox token status
   useEffect(() => {
@@ -53,7 +55,7 @@ export function TruckMap({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/light-v11',
+      style: darkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
       center: [-98.5795, 39.8283], // Center of USA
       zoom: 4,
       maxBounds: [
@@ -81,6 +83,14 @@ export function TruckMap({
       }
     }
   }, [])
+
+  // Update map style when dark mode changes
+  useEffect(() => {
+    if (!map.current) return
+    
+    const newStyle = darkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11'
+    map.current.setStyle(newStyle)
+  }, [darkMode])
 
   // Update pins when pins array changes
   useEffect(() => {

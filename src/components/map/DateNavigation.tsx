@@ -199,7 +199,7 @@ export function DateNavigation({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CalendarToday sx={{ color: 'primary.main' }} />
           <Typography variant="h6" component="div">
-            Truck Availability Map
+            Trucks & Loads Map Calendar
           </Typography>
         </Box>
 

@@ -27,6 +27,42 @@ a {
   text-decoration: none;
 }
 
+/* Dark mode styles */
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Mapbox dark mode support */
+.mapboxgl-map {
+  transition: filter 0.3s ease;
+}
+
+[data-theme="dark"] .mapboxgl-map {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+[data-theme="dark"] .mapboxgl-map .mapboxgl-canvas-container canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Custom marker styles for dark mode */
+[data-theme="dark"] .custom-marker {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Pulse animation for connection status */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;

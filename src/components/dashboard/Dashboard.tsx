@@ -30,6 +30,7 @@ import { CustomerCard as CustomerCardComponent } from './CustomerCard'
 import { EmailModal } from './EmailModal'
 import { MapView } from '../map/MapView'
 import { EmailWebSocketClient } from '@/lib/websocket'
+import { DarkModeToggle } from '../ui/DarkModeToggle'
 
 export function Dashboard() {
   const { instance, accounts } = useMsal()
@@ -982,7 +983,7 @@ export function Dashboard() {
       <AppBar position="static" elevation={0} sx={{ mb: 3 }}>
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Email Monitor Dashboard
+            Mr. Conard Al Truck & Loads Monitor
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Typography variant="body2">
@@ -1019,6 +1020,7 @@ export function Dashboard() {
             >
               <Key />
             </IconButton>
+            <DarkModeToggle />
             <IconButton color="inherit" onClick={handleLogout}>
               <Logout />
             </IconButton>
