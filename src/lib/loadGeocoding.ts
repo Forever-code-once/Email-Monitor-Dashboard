@@ -1,6 +1,22 @@
 import { LoadData, MapPin } from '@/types'
 import { geocodeAddress } from './geocoding'
 
+/**
+ * Get the next business day (Monday-Friday)
+ */
+function getNextBusinessDay(): Date {
+  const today = new Date()
+  const nextDay = new Date(today)
+  nextDay.setDate(today.getDate() + 1)
+  
+  // Keep adding days until we find a business day (Monday = 1, Friday = 5)
+  while (nextDay.getDay() === 0 || nextDay.getDay() === 6) { // Sunday = 0, Saturday = 6
+    nextDay.setDate(nextDay.getDate() + 1)
+  }
+  
+  return nextDay
+}
+
 export interface LoadPin extends MapPin {
   type: 'load'
   data: LoadData
@@ -164,9 +180,9 @@ function formatDateTime(dateStr: string, timeStr: string, isDeliveryDate: boolea
     if (isDeliveryDate) {
       return 'TBD' // Delivery dates with default date show as TBD
     } else {
-      // Start dates with default date show as current date
-      const currentDate = new Date()
-      const formattedDate = currentDate.toISOString().split('T')[0] // YYYY-MM-DD
+      // Start dates with default date show as next business day
+      const nextBusinessDay = getNextBusinessDay()
+      const formattedDate = nextBusinessDay.toISOString().split('T')[0] // YYYY-MM-DD
       const formattedTime = formatTime(timeStr)
       
       if (formattedTime === 'TBD') return formattedDate

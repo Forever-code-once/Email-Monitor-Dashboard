@@ -11,6 +11,22 @@ import { TruckAvailability, LoadData } from '@/types'
 import { geocodeAddress, preCacheCommonCities } from '@/lib/geocoding'
 import { convertLoadsToPins } from '@/lib/loadGeocoding'
 
+/**
+ * Get the next business day (Monday-Friday)
+ */
+function getNextBusinessDay(): Date {
+  const today = new Date()
+  const nextDay = new Date(today)
+  nextDay.setDate(today.getDate() + 1)
+  
+  // Keep adding days until we find a business day (Monday = 1, Friday = 5)
+  while (nextDay.getDay() === 0 || nextDay.getDay() === 6) { // Sunday = 0, Saturday = 6
+    nextDay.setDate(nextDay.getDate() + 1)
+  }
+  
+  return nextDay
+}
+
 interface MapViewProps {
   customerCards: any[] // Using existing customer cards data
   onViewEmails?: (customerEmail: string) => void
@@ -88,22 +104,22 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: 
           }
           
           if (range) {
-            // For default date loads, only include them if the range includes today
+            // For default date loads, only include them if the range includes the next business day
             if (isDefaultDate) {
-              const today = new Date()
-              const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-              const rangeIncludesToday = todayOnly >= range.start && todayOnly <= range.end
+              const nextBusinessDay = getNextBusinessDay()
+              const nextBusinessDayOnly = new Date(nextBusinessDay.getFullYear(), nextBusinessDay.getMonth(), nextBusinessDay.getDate())
+              const rangeIncludesNextBusinessDay = nextBusinessDayOnly >= range.start && nextBusinessDayOnly <= range.end
               
               console.log(`🗺️ Load ${load.REF_NUMBER} default date range check:`, {
-                today: todayOnly.toISOString().split('T')[0],
+                nextBusinessDay: nextBusinessDayOnly.toISOString().split('T')[0],
                 rangeStart: range.start.toISOString().split('T')[0],
                 rangeEnd: range.end.toISOString().split('T')[0],
                 isDefaultDate: isDefaultDate,
-                rangeIncludesToday: rangeIncludesToday,
-                matches: rangeIncludesToday
+                rangeIncludesNextBusinessDay: rangeIncludesNextBusinessDay,
+                matches: rangeIncludesNextBusinessDay
               })
               
-              return rangeIncludesToday
+              return rangeIncludesNextBusinessDay
             }
             
             // For regular dates, check if they fall within the range
@@ -122,22 +138,22 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0 }: 
             const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
             const loadDateOnly = new Date(loadDate.getFullYear(), loadDate.getMonth(), loadDate.getDate())
             
-            // For default date loads, only show them if selected date is today
+            // For default date loads, only show them if selected date is the next business day
             if (isDefaultDate) {
-              const today = new Date()
-              const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-              const isToday = selectedDateOnly.getTime() === todayOnly.getTime()
+              const nextBusinessDay = getNextBusinessDay()
+              const nextBusinessDayOnly = new Date(nextBusinessDay.getFullYear(), nextBusinessDay.getMonth(), nextBusinessDay.getDate())
+              const isNextBusinessDay = selectedDateOnly.getTime() === nextBusinessDayOnly.getTime()
               
               console.log(`🗺️ Load ${load.REF_NUMBER} default date check:`, {
                 selectedDate: selectedDateOnly.toISOString().split('T')[0],
-                today: todayOnly.toISOString().split('T')[0],
+                nextBusinessDay: nextBusinessDayOnly.toISOString().split('T')[0],
                 isDefaultDate: isDefaultDate,
-                isToday: isToday,
-                matches: isToday,
+                isNextBusinessDay: isNextBusinessDay,
+                matches: isNextBusinessDay,
                 company: load.company_name?.trim()
               })
               
-              return isToday
+              return isNextBusinessDay
             }
             
             // For regular dates, check if they match the selected date
