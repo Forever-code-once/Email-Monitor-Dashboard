@@ -1135,7 +1135,7 @@ export function Dashboard() {
               {viewMode === 'map' ? (
                 <>
                   <Typography variant="body1" color="text.secondary">
-                    {filteredCustomersCount} customers • {filteredTrucksCount} trucks available • {loadsCount} loads available
+                    {filteredTrucksCount} trucks available • {loadsCount} loads available
                   </Typography>
                   {totalCheckedTrucks > 0 && (
                     <Chip 
