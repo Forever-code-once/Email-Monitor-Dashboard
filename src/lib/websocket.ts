@@ -17,14 +17,11 @@ export class EmailWebSocketClient {
 
   constructor(url: string) {
     this.url = url
-    console.log('🔌 EmailWebSocketClient constructor called with URL:', url)
   }
 
   connect() {
     try {
-      console.log('🔌 Connecting to WebSocket server at:', this.url)
       this.ws = new WebSocket(this.url)
-      console.log('🔌 WebSocket object created, setting up event listeners...')
       
       // Add connection timeout
       const connectionTimeout = setTimeout(() => {
@@ -37,7 +34,6 @@ export class EmailWebSocketClient {
       }, 5000) // 5 second timeout for faster debugging
       
       this.ws.onopen = () => {
-        console.log('✅ WebSocket connected successfully')
         clearTimeout(connectionTimeout) // Clear timeout on successful connection
         this.isConnected = true
         this.reconnectAttempts = 0
@@ -54,7 +50,6 @@ export class EmailWebSocketClient {
       }
 
       this.ws.onclose = (event) => {
-        console.log('🔌 WebSocket disconnected, code:', event.code, 'reason:', event.reason)
         this.isConnected = false
         this.emit('disconnection', { status: 'disconnected', code: event.code, reason: event.reason })
         this.stopHeartbeat()
@@ -71,7 +66,6 @@ export class EmailWebSocketClient {
       }
 
       this.ws.onclose = () => {
-        console.log('🔌 WebSocket disconnected')
         this.isConnected = false
         this.emit('disconnection', { status: 'disconnected' })
         this.stopHeartbeat()
@@ -92,7 +86,6 @@ export class EmailWebSocketClient {
   }
 
   private handleServerMessage(message: any) {
-    console.log('📨 Received:', message.type)
     
     switch (message.type) {
       case 'CONNECTION_STATUS':
@@ -100,7 +93,6 @@ export class EmailWebSocketClient {
         break
         
       case 'NEW_EMAIL':
-        console.log('📧 New email received:', message.data.email.subject)
         this.emit('newEmail', {
           email: message.data.email,
           aiProcessed: message.data.aiProcessed,
@@ -109,7 +101,6 @@ export class EmailWebSocketClient {
         break
         
       case 'EMAIL_DELETED':
-        console.log('🗑️ Email deleted:', message.data.emailId)
         this.emit('emailDeleted', {
           emailId: message.data.emailId,
           timestamp: message.data.timestamp
@@ -117,22 +108,18 @@ export class EmailWebSocketClient {
         break
         
       case 'TRUCK_DATA_UPDATED':
-        console.log('🚛 Truck data updated:', message.data)
         this.emit('truckDataUpdated', message.data)
         break
         
       case 'LOAD_DATA_UPDATED':
-        console.log('📦 Load data updated:', message.data)
         this.emit('loadDataUpdated', message.data)
         break
         
       case 'MAP_REFRESH_REQUIRED':
-        console.log('🗺️ Map refresh required:', message.data)
         this.emit('mapRefreshRequired', message.data)
         break
         
       case 'MONITORING_STATUS':
-        console.log('🔄 Monitoring status:', message.data.active ? 'Active' : 'Inactive')
         this.emit('monitoringStatus', message.data)
         break
         
@@ -160,7 +147,6 @@ export class EmailWebSocketClient {
         break
         
       default:
-        console.log('❓ Unknown message type:', message.type)
         this.emit('unknown', message)
     }
   }
@@ -199,7 +185,6 @@ export class EmailWebSocketClient {
     }
 
       this.reconnectAttempts++
-    console.log(`🔄 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`)
       
       setTimeout(() => {
         this.connect()

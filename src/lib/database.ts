@@ -28,9 +28,7 @@ let pool: sql.ConnectionPool | null = null
 export async function getConnection(): Promise<sql.ConnectionPool> {
   if (!pool) {
     try {
-      console.log('🔌 Creating new database connection pool...')
       pool = await sql.connect(dbConfig)
-      console.log('✅ Database connection pool created successfully')
     } catch (error) {
       console.error('❌ Failed to create database connection pool:', error)
       throw error
@@ -101,7 +99,6 @@ export async function closeConnection(): Promise<void> {
     try {
       await pool.close()
       pool = null
-      console.log('🔌 Database connection pool closed')
     } catch (error) {
       console.error('❌ Error closing database connection:', error)
     }
@@ -115,7 +112,6 @@ export async function testConnection(): Promise<boolean> {
   try {
     const connection = await getConnection()
     const result = await connection.request().query('SELECT 1 as test')
-    console.log('✅ Database connection test successful:', result.recordset[0])
     return true
   } catch (error) {
     console.error('❌ Database connection test failed:', error)

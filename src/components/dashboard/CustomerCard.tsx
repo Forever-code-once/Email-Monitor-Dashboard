@@ -39,12 +39,10 @@ export function CustomerCard({
   
   const handleDeleteTruck = useCallback((truckId: string) => {
     if (deletingTrucks.has(truckId)) {
-      console.log('🚫 Delete already in progress for truck:', truckId)
       return // Prevent duplicate delete operations
     }
     
     setDeletingTrucks(prev => new Set(prev.add(truckId)))
-    console.log('🗑️ Starting delete for truck:', truckId)
     
     onDeleteTruck(truckId)
     

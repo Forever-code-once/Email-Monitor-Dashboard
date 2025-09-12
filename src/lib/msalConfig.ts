@@ -18,6 +18,10 @@ export const loginRequest: RedirectRequest = {
     'https://graph.microsoft.com/Mail.ReadWrite',
     'https://graph.microsoft.com/User.Read',
   ],
+  prompt: 'select_account', // Force account selection every time
+  extraQueryParameters: {
+    'login_hint': 'ai@conardlogistics.com' // Pre-fill with target account
+  }
 }
 
 export const graphConfig = {

@@ -70,16 +70,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     toTruck: string
   } | null>(null)
   
-  // Debug: Log selected date on initialization
-  useEffect(() => {
-    console.log('🗺️ MapView initialized with selectedDate:', {
-      date: selectedDate,
-      year: selectedDate.getFullYear(),
-      month: selectedDate.getMonth() + 1,
-      day: selectedDate.getDate(),
-      isoString: selectedDate.toISOString()
-    })
-  }, [])
   const [pins, setPins] = useState<MapPin[]>([])
   const [loadPins, setLoadPins] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -97,15 +87,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
 
   // Debug: Log customer cards data
   useEffect(() => {
-    console.log('🗺️ MapView received customerCards:', {
-      count: customerCards.length,
-      sampleCard: customerCards[0] ? {
-        customer: customerCards[0].customer,
-        email: customerCards[0].customerEmail,
-        truckCount: customerCards[0].trucks.length,
-        sampleTruck: customerCards[0].trucks[0]
-      } : null
-    })
+    // Customer cards logging removed
   }, [customerCards])
 
   // Check if cache is valid
@@ -119,7 +101,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
   const loadFromCache = useCallback(() => {
     // First check in-memory cache
     if (isCacheValid()) {
-      console.log('🗺️ Using in-memory cache for loads data')
       return loadsCache!.data
     }
 
@@ -130,11 +111,9 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
         const parsed = JSON.parse(cached)
         const now = Date.now()
         if (now < parsed.expiresAt) {
-          console.log('🗺️ Using localStorage cache for loads data')
           setLoadsCache(parsed)
           return parsed.data
         } else {
-          console.log('🗺️ localStorage cache expired, removing')
           localStorage.removeItem('loads-cache')
         }
       }
@@ -155,7 +134,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     
     try {
       localStorage.setItem('loads-cache', JSON.stringify(cacheData))
-      console.log('🗺️ Saved loads data to cache and localStorage')
     } catch (error) {
       console.warn('🗺️ Error saving to localStorage cache:', error)
     }
@@ -165,13 +143,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
   const fetchAndCreateLoadPins = useCallback(async (date: Date, range?: { start: Date; end: Date }) => {
     setLoadingLoads(true)
     try {
-      console.log('🗺️ Fetching loads from database for date:', {
-        selectedDate: date.toISOString().split('T')[0],
-        year: date.getFullYear(),
-        month: date.getMonth() + 1,
-        day: date.getDate(),
-        hasRange: !!range
-      })
+      // Date logging removed
 
       // Try to load from cache first
       const cachedData = loadFromCache()
@@ -179,16 +151,13 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
 
       if (cachedData) {
         loads = cachedData
-        console.log(`🗺️ Using cached loads data: ${loads.length} loads`)
       } else {
         // Fetch from API if no valid cache
-        console.log('🗺️ No valid cache, fetching from API...')
         const response = await fetch('/api/loads')
         const data = await response.json()
         
         if (data.success && data.loads) {
           loads = data.loads
-          console.log(`🗺️ Fetched ${loads.length} loads from API`)
           
           // Save to cache
           saveToCache(loads)
@@ -200,14 +169,12 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
       }
       
       if (loads.length > 0) {
-        console.log(`🗺️ Processing ${loads.length} loads for filtering`)
         
         // Filter loads by date range or selected date
         const filteredLoads = loads.filter((load: LoadData) => {
           // Use DEPART_DATE as the primary date field for filtering
           const dateField = load.DEPART_DATE || load.pu_drop_date1
           if (!dateField) {
-            console.log(`⚠️ Load ${load.REF_NUMBER} has no start date, excluding`)
             return false
           }
           
@@ -216,7 +183,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
           
           const loadDate = new Date(dateField)
           if (isNaN(loadDate.getTime())) {
-            console.log(`⚠️ Load ${load.REF_NUMBER} has invalid date: ${dateField}`)
             return false
           }
           
@@ -227,28 +193,11 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
               const nextBusinessDayOnly = new Date(nextBusinessDay.getFullYear(), nextBusinessDay.getMonth(), nextBusinessDay.getDate())
               const rangeIncludesNextBusinessDay = nextBusinessDayOnly >= range.start && nextBusinessDayOnly <= range.end
               
-              console.log(`🗺️ Load ${load.REF_NUMBER} default date range check:`, {
-                nextBusinessDay: nextBusinessDayOnly.toISOString().split('T')[0],
-                rangeStart: range.start.toISOString().split('T')[0],
-                rangeEnd: range.end.toISOString().split('T')[0],
-                isDefaultDate: isDefaultDate,
-                rangeIncludesNextBusinessDay: rangeIncludesNextBusinessDay,
-                matches: rangeIncludesNextBusinessDay
-              })
-              
               return rangeIncludesNextBusinessDay
             }
             
             // For regular dates, check if they fall within the range
             const matches = loadDate >= range.start && loadDate <= range.end
-            console.log(`🗺️ Load ${load.REF_NUMBER} date range check:`, {
-              loadDate: loadDate.toISOString().split('T')[0],
-              dateField: dateField,
-              isDefaultDate: isDefaultDate,
-              rangeStart: range.start.toISOString().split('T')[0],
-              rangeEnd: range.end.toISOString().split('T')[0],
-              matches
-            })
             return matches
           } else {
             // Check if load date matches selected date (ignore time)
@@ -260,41 +209,19 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
               const nextBusinessDay = getNextBusinessDay()
               const nextBusinessDayOnly = new Date(nextBusinessDay.getFullYear(), nextBusinessDay.getMonth(), nextBusinessDay.getDate())
               const isNextBusinessDay = selectedDateOnly.getTime() === nextBusinessDayOnly.getTime()
-              
-              console.log(`🗺️ Load ${load.REF_NUMBER} default date check:`, {
-                selectedDate: selectedDateOnly.toISOString().split('T')[0],
-                nextBusinessDay: nextBusinessDayOnly.toISOString().split('T')[0],
-                isDefaultDate: isDefaultDate,
-                isNextBusinessDay: isNextBusinessDay,
-                matches: isNextBusinessDay,
-                company: load.company_name?.trim()
-              })
-              
               return isNextBusinessDay
             }
             
             // For regular dates, check if they match the selected date
             const dateMatches = loadDateOnly.getTime() === selectedDateOnly.getTime()
-            
-            console.log(`🗺️ Load ${load.REF_NUMBER} date comparison:`, {
-              selectedDate: selectedDateOnly.toISOString().split('T')[0],
-              loadDate: loadDateOnly.toISOString().split('T')[0],
-              dateField: dateField,
-              isDefaultDate: isDefaultDate,
-              matches: dateMatches,
-              company: load.company_name?.trim()
-            })
-            
             return dateMatches
           }
         })
         
-        console.log(`🗺️ Filtered to ${filteredLoads.length} loads for selected date/range`)
         
         // If no loads found for the selected date, show available dates
         if (filteredLoads.length === 0) {
-          console.log(`⚠️ No loads found for selected date: ${date.toISOString().split('T')[0]}`)
-          console.log(`📅 Available load dates:`, loads
+          const availableDates = loads
             .filter((load: LoadData) => {
               const dateField = load.DEPART_DATE || load.pu_drop_date1
               return dateField && dateField !== '1753-01-01T00:00:00.000Z' && dateField !== '1753-01-01'
@@ -302,14 +229,11 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
             .map((load: LoadData) => new Date(load.DEPART_DATE || load.pu_drop_date1!).toISOString().split('T')[0])
             .filter((date: string, index: number, array: string[]) => array.indexOf(date) === index)
             .sort()
-          )
         }
         
         const loadPins = await convertLoadsToPins(filteredLoads)
         setLoadPins(loadPins)
-        console.log(`🗺️ Created ${loadPins.length} load pins`)
       } else {
-        console.log('🗺️ No loads available')
         setLoadPins([])
       }
     } catch (error) {
@@ -393,29 +317,24 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
       })
       .sort((a, b) => a.getTime() - b.getTime())
     
-    console.log('🗺️ Available dates from customer cards:', validDates.map(d => d.toISOString().split('T')[0]))
     return validDates
   }, [customerCards])
 
   // Convert truck data to map pins
   const createMapPins = useCallback(async (date: Date, range?: { start: Date; end: Date } | null) => {
-    console.log('🗺️ createMapPins called with:', { date, range, customerCardsLength: customerCards.length })
     
     if (customerCards.length === 0) {
-      console.log('🗺️ No customer cards available, skipping pin creation')
       setPins([])
       return
     }
     
     // Validate date parameters
     if (isNaN(date.getTime())) {
-      console.log('🗺️ Invalid date provided, skipping pin creation')
       setPins([])
       return
     }
     
     if (range && (isNaN(range.start.getTime()) || isNaN(range.end.getTime()))) {
-      console.log('🗺️ Invalid date range provided, skipping pin creation')
       setPins([])
       return
     }
@@ -425,20 +344,9 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     try {
       let trucksForDate: TruckAvailability[] = []
       
-      console.log('🗺️ Creating map pins for:', { 
-        date: isNaN(date.getTime()) ? 'Invalid Date' : date.toISOString().split('T')[0], 
-        range 
-      })
-      console.log('🗺️ Available customer cards:', customerCards.length)
-      
       // Debug: Log first few customer cards
       if (customerCards.length > 0) {
-        console.log('🗺️ Sample customer card:', {
-          customer: customerCards[0].customer,
-          email: customerCards[0].customerEmail,
-          truckCount: customerCards[0].trucks.length,
-          sampleTruck: customerCards[0].trucks[0]
-        })
+        // Customer cards logging removed
       }
       
       if (range) {
@@ -452,7 +360,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
         const endDay = range.end.getDate().toString()
         const endStr = `${endMonth}/${endDay}`
         
-        console.log('🗺️ Filtering for date range:', startStr, 'to', endStr)
         
         customerCards.forEach(card => {
           card.trucks.forEach((truck: TruckAvailability) => {
@@ -477,15 +384,8 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
         const day = date.getDate().toString()
         const dateStr = `${month}/${day}` // MM/DD format
         
-        console.log('🗺️ Filtering for single date:', dateStr)
         
         customerCards.forEach(card => {
-          console.log('🗺️ Checking customer card:', {
-            customer: card.customer,
-            email: card.customerEmail,
-            truckCount: card.trucks.length
-          })
-          
           card.trucks.forEach((truck: TruckAvailability) => {
                          // Handle different date formats in truck data
              let truckDateStr = truck.date
@@ -508,15 +408,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
              const normalizedTruckDate = normalizeDate(truckDateStr)
              const normalizedTargetDate = normalizeDate(dateStr)
              
-             console.log('🗺️ Checking truck:', {
-               originalDate: truckDateStr,
-               normalizedTruckDate,
-               normalizedTargetDate,
-               city: truck.city,
-               state: truck.state,
-               matches: normalizedTruckDate === normalizedTargetDate
-             })
-             
              if (normalizedTruckDate === normalizedTargetDate) {
                trucksForDate.push(truck)
              }
@@ -524,17 +415,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
         })
       }
 
-             console.log('🗺️ Found trucks for date/range:', trucksForDate.length)
-       console.log('🗺️ All trucks found:', trucksForDate.map(t => ({
-         customer: t.customer,
-         email: t.customerEmail,
-         date: t.date,
-         city: t.city,
-         state: t.state
-       })))
-
-       if (trucksForDate.length === 0) {
-         console.log('🗺️ No trucks found for date, setting empty pins')
+      if (trucksForDate.length === 0) {
          setPins([])
          return
        }
@@ -555,13 +436,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
           
           const isDeleted = deletedTrucks.includes(truck.id)
           if (isDeleted) {
-            console.log('🗺️ Debug: Truck filtered out as deleted:', {
-              customer: truck.customer,
-              email: truck.customerEmail,
-              city: truck.city,
-              state: truck.state,
-              id: truck.id
-            })
+            // Truck deletion logging removed
           }
           
           return !isDeleted
@@ -571,18 +446,9 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
         }
       })
 
-      console.log('🗺️ Filtered trucks after removing deleted:', filteredTrucks.length)
 
       // Group trucks by location only (not by customer email)
       const locationGroups = new Map<string, TruckAvailability[]>()
-      
-      console.log('🗺️ Debug: Filtered trucks before grouping:', filteredTrucks.map(t => ({
-        customer: t.customer,
-        email: t.customerEmail,
-        city: t.city,
-        state: t.state,
-        date: t.date
-      })))
       
       filteredTrucks.forEach(truck => {
         // Group by location only - all customers at same location will be in one pin
@@ -592,12 +458,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
         }
         locationGroups.get(key)!.push(truck)
       })
-      
-      console.log('🗺️ Debug: Location groups created:', Array.from(locationGroups.entries()).map(([key, trucks]) => ({
-        key,
-        customerCount: trucks.length,
-        customers: trucks.map(t => ({ customer: t.customer, email: t.customerEmail }))
-      })))
 
       // Geocode locations and create pins
       const pinPromises = Array.from(locationGroups.entries()).map(async ([locationKey, trucks]) => {
@@ -627,19 +487,10 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
       const pinResults = await Promise.all(pinPromises)
       const validPins = pinResults.filter(pin => pin !== null) as MapPin[]
       
-      console.log('🗺️ Debug: Final pins created:', validPins.map(pin => ({
-        id: pin.id,
-        city: pin.city,
-        state: pin.state,
-        truckCount: pin.truckCount,
-        customers: pin.trucks.map(t => ({ customer: t.customer, email: t.customerEmail }))
-      })))
-      
       setPins(validPins)
                   const dateDisplay = range ? 
               `${isNaN(range.start.getTime()) ? new Date().toISOString().split('T')[0] : range.start.toISOString().split('T')[0]} - ${isNaN(range.end.getTime()) ? new Date().toISOString().split('T')[0] : range.end.toISOString().split('T')[0]}` : 
               (isNaN(date.getTime()) ? new Date().toISOString().split('T')[0] : date.toISOString().split('T')[0])
-      console.log(`🗺️ Created ${validPins.length} map pins for ${dateDisplay}`)
       
     } catch (error) {
       console.error('❌ Error creating map pins:', error)
@@ -653,12 +504,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     if (!initialized && customerCards.length > 0) {
       const dates = availableDates()
       if (dates.length > 0 && !isNaN(dates[0].getTime())) {
-        console.log('🗺️ Initializing with first available date:', dates[0].toISOString().split('T')[0])
-        console.log('🗺️ Date details:', {
-          year: dates[0].getFullYear(),
-          month: dates[0].getMonth() + 1,
-          day: dates[0].getDate()
-        })
         setSelectedDate(dates[0])
         setInitialized(true)
       }
@@ -680,7 +525,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
   // Handle real-time map refresh trigger
   useEffect(() => {
     if (mapRefreshTrigger > 0 && initialized) {
-      console.log('🔄 Real-time map refresh triggered:', mapRefreshTrigger)
       // Refresh both truck pins and load pins
       createMapPins(selectedDate, dateRange || undefined)
       fetchAndCreateLoadPins(selectedDate, dateRange || undefined)
@@ -735,7 +579,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
 
   // Distance measurement handlers
   const handleLoadRightClick = (loadPin: LoadPin) => {
-    console.log('📏 Load right-clicked for distance measurement:', loadPin)
     setSelectedLoad(loadPin)
     
     // If we have a selected truck, calculate distance immediately
@@ -757,7 +600,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
   }
 
   const handleTruckRightClick = (truckPin: MapPin) => {
-    console.log('📏 Truck right-clicked for distance measurement:', truckPin)
     setSelectedTruck(truckPin)
     
     // If we have a selected load, calculate distance immediately

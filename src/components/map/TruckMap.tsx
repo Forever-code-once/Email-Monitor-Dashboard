@@ -59,11 +59,7 @@ export function TruckMap({
 
   // Debug: Log Mapbox token status
   useEffect(() => {
-    console.log('🗺️ Mapbox token status:', {
-      hasToken: !!process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
-      tokenLength: process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.length || 0,
-      tokenPrefix: process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.substring(0, 3) || 'none'
-    })
+    // Token validation removed
   }, [])
 
   // Initialize map

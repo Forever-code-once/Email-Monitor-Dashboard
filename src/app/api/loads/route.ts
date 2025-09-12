@@ -7,11 +7,7 @@ export const dynamic = 'auto'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Fetching available loads from database...')
-    
     const loads = await databaseQueries.getAvailableLoads()
-    
-    console.log(`✅ Found ${loads.length} available loads`)
     
     const response = NextResponse.json({
       success: true,
@@ -50,11 +46,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`🔍 Fetching loads for company: ${companyName}`)
-    
     const loads = await databaseQueries.getLoadsByCompany(companyName)
-    
-    console.log(`✅ Found ${loads.length} loads for ${companyName}`)
     
     return NextResponse.json({
       success: true,

@@ -65,6 +65,10 @@ export function LoginScreen() {
           Sign in with Microsoft
         </Button>
 
+        <Typography variant="body2" color="warning.main" sx={{ mt: 2, fontWeight: 'bold' }}>
+          ⚠️ Important: Please select "ai@conardlogistics.com" when prompted
+        </Typography>
+
         <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
           Sign in to access your email monitoring dashboard
         </Typography>

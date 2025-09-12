@@ -34,9 +34,12 @@ export function getGraphClient(msalInstance: PublicClientApplication) {
 
 export async function getEmails(graphClient: Client, top: number = 50) {
   try {
-    // Specifically target emails from the Inbox folder only
+    // Always fetch from ai@conardlogistics.com account's inbox
+    const targetEmail = process.env.NEXT_PUBLIC_TARGET_EMAIL_ACCOUNT || 'ai@conardlogistics.com';
+    
+    
     const messages = await graphClient
-      .api('/me/mailFolders/inbox/messages')
+      .api(`/users/${targetEmail}/mailFolders/inbox/messages`)
       .select('id,subject,bodyPreview,body,from,receivedDateTime')
       .top(top)
       .orderby('receivedDateTime desc')

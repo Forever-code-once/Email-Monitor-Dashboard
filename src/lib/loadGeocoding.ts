@@ -31,14 +31,12 @@ export interface LoadPin extends MapPin {
  * Convert load data to map pins grouped by location (like truck pins)
  */
 export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> {
-  console.log(`🔄 Converting ${loads.length} loads to grouped pins by location...`)
   
   // Group loads by location
   const locationGroups = new Map<string, LoadData[]>()
   
   for (const load of loads) {
     try {
-      console.log(`📋 Processing load: REF_NUMBER=${load.REF_NUMBER}, FROMCITY=${load.FROMCITY}, FROMSTATE=${load.FROMSTATE}`)
       
       let city = ''
       let state = ''
@@ -67,16 +65,13 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
         }
         locationGroups.get(locationKey)!.push(load)
         
-        console.log(`📍 Grouped load ${load.REF_NUMBER} under location: ${locationKey}`)
       } else {
-        console.log(`⚠️ No location data for load ${load.REF_NUMBER}`)
       }
     } catch (error) {
       console.error(`❌ Error processing load ${load.REF_NUMBER}:`, error)
     }
   }
   
-  console.log(`🗺️ Created ${locationGroups.size} location groups`)
   
   // Create pins for each location group
   const pins: LoadPin[] = []
@@ -97,7 +92,6 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
         // Apply longitude correction for US locations
         if (longitude > 0) {
           longitude = -longitude;
-          console.log(`🔄 Corrected positive longitude to negative: ${longitude}`);
         }
         
         // Validate coordinates
@@ -110,12 +104,10 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
           continue
         }
         
-        console.log(`📍 Using exact coordinates for ${locationKey}: latitude=${latitude}, longitude=${longitude}`)
       } else {
         // Fallback to geocoding
         const geocodeResult = await geocodeAddress(city, state)
         if (!geocodeResult) {
-          console.log(`⚠️ Could not geocode location: ${locationKey}`)
           continue
         }
         latitude = geocodeResult.latitude
@@ -124,7 +116,6 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
         // Apply longitude correction for geocoded coordinates too
         if (longitude > 0) {
           longitude = -longitude;
-          console.log(`🔄 Corrected geocoded positive longitude to negative: ${longitude}`);
         }
       }
       
@@ -146,13 +137,11 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
       }
       
       pins.push(pin)
-      console.log(`✅ Created grouped load pin for ${locationKey}: ${locationLoads.length} loads`)
     } catch (error) {
       console.error(`❌ Error creating pin for location ${locationKey}:`, error)
     }
   }
   
-  console.log(`🎯 Created ${pins.length} grouped load pins`)
   return pins
 }
 

@@ -68,11 +68,33 @@ export function Dashboard() {
   const [selectedCustomer, setSelectedCustomer] = useState<{ name: string; email: string } | null>(null)
   const [customerEmails, setCustomerEmails] = useState<EmailMessage[]>([])
 
-  // Check for active account whenever authentication state changes
+  // Check for active account and validate correct email account
   useEffect(() => {
     const checkActiveAccount = () => {
       const activeAccount = instance.getActiveAccount()
       setHasActiveAccount(!!activeAccount)
+      
+      // Validate that the correct account is being used
+      if (activeAccount) {
+        const targetEmail = 'ai@conardlogistics.com'
+        const currentEmail = activeAccount.username || activeAccount.name
+        
+        if (currentEmail !== targetEmail) {
+          console.warn(`⚠️ Wrong account detected: ${currentEmail}. Expected: ${targetEmail}`)
+          showNotification(
+            `Please sign out and sign in with ${targetEmail}`, 
+            'warning', 
+            8000
+          )
+          
+          // Force logout and re-login with correct account
+          instance.logoutRedirect({
+            postLogoutRedirectUri: window.location.origin
+          })
+          return
+        } else {
+        }
+      }
       
       // If we have accounts but no active account, set the first one as active
       if (!activeAccount && accounts.length > 0) {
@@ -89,48 +111,33 @@ export function Dashboard() {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    console.log('🔌 WebSocket useEffect triggered')
-    console.log('Is authenticated:', isAuthenticated)
-    console.log('Has active account:', hasActiveAccount)
-    
     if (isAuthenticated && hasActiveAccount) {
-      console.log('🔌 Attempting WebSocket connection...')
-      
       // Determine WebSocket URL based on current domain
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const host = window.location.hostname
       const wsUrl = `${protocol}//${host}/ws`
       
-      console.log('🔌 WebSocket URL:', wsUrl)
       const wsClient = new EmailWebSocketClient(wsUrl)
       wsClientRef.current = wsClient
 
       // Set up WebSocket event listeners
       wsClient.on('connection', async (data: any) => {
-        console.log('✅ WebSocket connected:', data.message)
         setWsConnected(true)
         
-        console.log('🔍 Checking authentication status...')
-        console.log('Is authenticated:', isAuthenticated)
-        console.log('Has active account:', hasActiveAccount)
         
         // Request initial database update
         wsClient.requestDatabaseUpdate()
         
         // Send access token to WebSocket server
         try {
-          console.log('🔍 Getting active account...')
           const account = instance.getActiveAccount()
-          console.log('Active account:', account ? 'Found' : 'Not found')
           
           if (account) {
-            console.log('🔍 Acquiring token silently...')
             const response = await instance.acquireTokenSilent({
               ...loginRequest,
               account: account,
             })
             
-            console.log('🔑 Token acquired, sending to WebSocket server...')
             wsClient.send({
               type: 'SET_ACCESS_TOKEN',
               data: {
@@ -139,11 +146,9 @@ export function Dashboard() {
               }
             })
             
-            console.log('✅ Access token sent to WebSocket server')
             
             // Request real-time monitoring for email and load changes
             wsClient.requestRealtimeMonitoring()
-            console.log('🔄 Real-time monitoring requested')
           } else {
             console.error('❌ No active account found')
           }
@@ -153,12 +158,10 @@ export function Dashboard() {
       })
 
       wsClient.on('disconnection', (data: any) => {
-        console.log('❌ WebSocket disconnected')
         setWsConnected(false)
       })
 
       wsClient.on('newEmail', (data: any) => {
-        console.log('📧 New email received via WebSocket:', data.email.subject)
         const { email, aiProcessed } = data
         
         // Add raw email to the list
@@ -179,11 +182,9 @@ export function Dashboard() {
       })
 
       wsClient.on('monitoringStatus', (data: any) => {
-        console.log('🔄 Monitoring status changed:', data.active ? 'Active' : 'Inactive')
       })
 
       wsClient.on('serverStatus', (data: any) => {
-        console.log('📊 Server status:', data)
       })
 
       wsClient.on('heartbeat', async (data: any) => {
@@ -218,15 +219,12 @@ export function Dashboard() {
       })
 
       wsClient.on('TOKEN_CONFIRMED', (data: any) => {
-        console.log('✅ Token confirmed by WebSocket server')
       })
 
       wsClient.on('pong', (data: any) => {
-        console.log('🏓 Pong received from server')
       })
 
       wsClient.on('tokenConfirmed', (data: any) => {
-        console.log('✅ Token confirmed by WebSocket server')
       })
 
       wsClient.on('error', (error: any) => {
@@ -235,17 +233,6 @@ export function Dashboard() {
         showNotification(`WebSocket connection error: ${error.message || 'Connection failed'}`, 'error', 5000)
       })
 
-      wsClient.on('databaseUpdate', (data: any) => {
-        console.log('🗄️ Database update received via WebSocket:', data)
-        // Handle database updates (loads, trucks, etc.)
-        if (data.type === 'loads') {
-          console.log(`📦 Received ${data.count} loads update`)
-          // You can add logic here to update the map with new loads
-        } else if (data.type === 'trucks') {
-          console.log(`🚛 Received ${data.truckCount} trucks update`)
-          // You can add logic here to update truck data
-        }
-      })
 
       wsClient.on('databaseError', (data: any) => {
         console.error('❌ Database error via WebSocket:', data)
@@ -261,28 +248,24 @@ export function Dashboard() {
 
       // Real-time monitoring event handlers
       wsClient.on('emailDeleted', (data: any) => {
-        console.log('🗑️ Email deleted, refreshing truck data:', data.emailId)
         showNotification('Email deleted, updating truck data...', 'info', 3000)
         // Trigger map refresh for truck data
         setMapRefreshTrigger(prev => prev + 1)
       })
 
       wsClient.on('truckDataUpdated', (data: any) => {
-        console.log('🚛 Truck data updated via WebSocket:', data)
         showNotification('Truck data updated', 'success', 3000)
         // Trigger map refresh for truck data
         setMapRefreshTrigger(prev => prev + 1)
       })
 
       wsClient.on('loadDataUpdated', (data: any) => {
-        console.log('📦 Load data updated via WebSocket:', data)
         showNotification('Load data updated', 'success', 3000)
         // Trigger map refresh for load data
         setMapRefreshTrigger(prev => prev + 1)
       })
 
       wsClient.on('mapRefreshRequired', (data: any) => {
-        console.log('🗺️ Map refresh required via WebSocket:', data)
         showNotification('Map data updated', 'info', 3000)
         // Trigger map refresh
         setMapRefreshTrigger(prev => prev + 1)
@@ -291,7 +274,6 @@ export function Dashboard() {
       // Add a fallback for when WebSocket fails
       const fallbackTimeout = setTimeout(() => {
         if (!wsConnected) {
-          console.log('⚠️ WebSocket connection failed, using manual refresh mode')
           showNotification('Real-time connection failed. Using manual refresh mode.', 'warning', 6000)
         }
       }, 15000) // 15 second fallback
@@ -327,20 +309,13 @@ export function Dashboard() {
         
         const promises = batch.map(async (email) => {
           try {
-            console.log('🤖 Processing email:', {
-              from: email.from?.emailAddress?.address,
-              subject: email.subject,
-              id: email.id
-            })
             
             const parsedDataArray = await parseEmailWithAI(email)
             // parseEmailWithAI now returns an array
             if (parsedDataArray && Array.isArray(parsedDataArray) && parsedDataArray.length > 0) {
-              console.log('✅ AI processed successfully:', parsedDataArray.map(p => ({ customer: p.customer, email: p.customerEmail, trucks: p.trucks?.length || 0 })))
               // Return each customer as a separate result
               return parsedDataArray.map(parsedData => ({ email, parsedData }))
             } else {
-              console.log('❌ AI processing returned no data for email:', email.from?.emailAddress?.address)
             }
           } catch (error) {
             console.error(`Error parsing email ${email.id}:`, error)
@@ -367,12 +342,10 @@ export function Dashboard() {
                   parsedData.customer === 'Another Customer Company' ||
                   parsedData.customer.includes('TNCC Inc Dispatch') ||
                   email.id?.startsWith('email-')) {
-                console.log('🚫 Filtered out simulated data during processing:', parsedData.customer, 'Email:', parsedData.customerEmail)
                 return
               }
               
               // Debug: Log real customer data being processed
-              console.log('✅ Processing real customer:', parsedData.customer, 'Trucks:', parsedData.trucks?.length || 0)
               
               // Only process if we have trucks
               if (!parsedData.trucks || !Array.isArray(parsedData.trucks) || parsedData.trucks.length === 0) {
@@ -442,29 +415,17 @@ export function Dashboard() {
       setCustomerCards(finalCustomerCardsArray)
       
       const totalTrucks = finalCustomerCardsArray.reduce((sum, card) => sum + card.trucks.length, 0)
-      console.log(`🤖 AI Processing completed: ${finalCustomerCardsArray.length} customers, ${totalTrucks} trucks from ${successCount}/${processedCount} emails`)
       
       // Detailed logging for debugging truck count variations
-      console.log('📊 Detailed truck count breakdown:')
       finalCustomerCardsArray.forEach((card, index) => {
-        console.log(`  Customer ${index + 1}: ${card.customer} (${card.customerEmail}) - ${card.trucks.length} trucks`)
         if (card.trucks.length > 0) {
           const locationGroups = new Map<string, number>()
           card.trucks.forEach(truck => {
             const key = `${truck.city}, ${truck.state}`
             locationGroups.set(key, (locationGroups.get(key) || 0) + 1)
           })
-          console.log(`    Locations:`, Array.from(locationGroups.entries()).map(([loc, count]) => `${loc}(${count})`).join(', '))
         }
       })
-      
-      // Debug: Log all customer cards created
-      console.log('🔍 Final customer cards created:', finalCustomerCardsArray.map(card => ({
-        customer: card.customer,
-        email: card.customerEmail,
-        truckCount: card.trucks.length,
-        trucks: card.trucks.map(t => ({ city: t.city, state: t.state, date: t.date }))
-      })))
       
       // Update success message
       if (successCount > 0) {
@@ -502,12 +463,10 @@ export function Dashboard() {
         parsedData.customer === 'Another Customer Company' ||
         parsedData.customer.includes('TNCC Inc Dispatch') ||
         email.id?.startsWith('email-')) {
-      console.log('🚫 Filtered out simulated data:', parsedData.customer, 'Email:', parsedData.customerEmail)
       return
     }
     
     // Debug: Log real customer data being processed
-    console.log('✅ Processing real customer in addParsedDataToCustomerCards:', parsedData.customer, 'Trucks:', parsedData.trucks?.length || 0)
 
     const trucks: TruckAvailability[] = parsedData.trucks.map(truck => ({
       id: generateTruckId(email, truck.city, truck.state, truck.date),
@@ -669,13 +628,6 @@ export function Dashboard() {
     try {
       const graphClient = getGraphClient(instance as any)
       const emails: EmailMessage[] = await getEmails(graphClient, 50) // Reduced for faster initial load
-      
-      console.log('📧 Fetched emails:', emails.length)
-      console.log('📧 Email details:', emails.map(email => ({
-        from: email.from?.emailAddress?.address,
-        subject: email.subject,
-        receivedDateTime: email.receivedDateTime
-      })))
       setRawEmails(emails)
 
       // Convert emails to sender cards
@@ -740,26 +692,19 @@ export function Dashboard() {
   }
 
   const handleSendToken = async () => {
-    console.log('🔑 Manual token send requested')
-    console.log('wsClientRef.current:', !!wsClientRef.current)
-    console.log('isAuthenticated:', isAuthenticated)
-    console.log('hasActiveAccount:', hasActiveAccount)
     
     if (!wsClientRef.current) {
-      console.log('🔌 Creating new WebSocket connection...')
       
       // Determine WebSocket URL based on current domain
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const host = window.location.hostname
       const wsUrl = `${protocol}//${host}/ws`
       
-      console.log('🔌 WebSocket URL:', wsUrl)
       const wsClient = new EmailWebSocketClient(wsUrl)
       wsClientRef.current = wsClient
       
       // Add connection event listeners for debugging
       wsClient.on('connection', (data) => {
-        console.log('✅ Manual connection successful:', data)
         setWsConnected(true)
         showNotification('WebSocket connected!', 'success', 3000)
         setError(null)
@@ -771,7 +716,6 @@ export function Dashboard() {
       })
       
       wsClient.on('disconnection', (data) => {
-        console.log('❌ Manual disconnection:', data)
         setWsConnected(false)
       })
       
@@ -782,17 +726,14 @@ export function Dashboard() {
     
     // Check if WebSocket is connected
     const connectionStatus = wsClientRef.current.getConnectionStatus()
-    console.log('🔍 WebSocket connection status:', connectionStatus)
     
     if (!connectionStatus.connected) {
-      console.log('🔌 WebSocket not connected, attempting to reconnect...')
       wsClientRef.current.connect()
       showNotification('Reconnecting WebSocket...', 'info', 3000)
       
       // Wait a bit and try again
       setTimeout(() => {
         const newStatus = wsClientRef.current?.getConnectionStatus()
-        console.log('🔍 WebSocket connection status after reconnect:', newStatus)
         if (newStatus?.connected) {
           showNotification('WebSocket reconnected!', 'success', 3000)
         } else {
@@ -804,7 +745,6 @@ export function Dashboard() {
     
     if (wsClientRef.current && isAuthenticated && hasActiveAccount) {
       try {
-        console.log('🔍 Manually sending access token...')
         const account = instance.getActiveAccount()
         if (account) {
           const response = await instance.acquireTokenSilent({
@@ -862,7 +802,6 @@ export function Dashboard() {
   }
 
   const handleDeleteTruck = (truckId: string) => {
-    console.log('🗑️ Deleting truck with ID:', truckId)
     
     setCustomerCards(prevCards => {
       const updatedCards = prevCards.map(card => {
@@ -870,13 +809,11 @@ export function Dashboard() {
         const filteredTrucks = card.trucks.filter(truck => {
           const shouldKeep = truck.id !== truckId
           if (!shouldKeep) {
-            console.log('🗑️ Found and removing truck:', truck.city, truck.state, truck.date)
           }
           return shouldKeep
         })
         
         if (filteredTrucks.length !== originalTruckCount) {
-          console.log(`🗑️ Removed truck from ${card.customer}: ${originalTruckCount} -> ${filteredTrucks.length}`)
         }
         
         return {
@@ -886,72 +823,49 @@ export function Dashboard() {
       }).filter(card => {
         const hasNoTrucks = card.trucks.length === 0
         if (hasNoTrucks) {
-          console.log(`🗑️ Removing empty customer card: ${card.customer}`)
         }
         return !hasNoTrucks
       })
       
-      console.log('🗑️ Updated customer cards count:', updatedCards.length)
       return updatedCards
     })
   }
 
   const handleViewEmails = (customerEmail: string) => {
-    console.log('🔍 Opening email modal for:', customerEmail)
     
     // Find the customer name
     const customer = customerCards.find(c => c.customerEmail.toLowerCase() === customerEmail.toLowerCase())
     const customerName = customer?.customer || customerEmail.split('@')[0]
     
     // Filter emails for this customer
-    console.log('🔍 Filtering emails for customer:', customerEmail)
-    console.log('🔍 Total raw emails available:', rawEmails.length)
-    console.log('🔍 Raw email addresses:', rawEmails.map(e => e.from.emailAddress.address))
-    console.log('🔍 Customer cards:', customerCards.map(c => ({ customer: c.customer, email: c.customerEmail })))
     
     const filteredEmails = rawEmails.filter(email => {
       const matches = email.from.emailAddress.address.toLowerCase() === customerEmail.toLowerCase()
-      console.log(`🔍 Email ${email.id}: ${email.from.emailAddress.address} matches ${customerEmail}? ${matches}`)
       return matches
     })
     
     // If no exact matches found, try to find emails that contain the customer name
     if (filteredEmails.length === 0) {
-      console.log('🔍 No exact email matches found, trying to find emails containing customer name...')
       const customerName = customer?.customer || customerEmail.split('@')[0]
       const fallbackEmails = rawEmails.filter(email => {
         const emailContent = email.body.content.toLowerCase()
         const emailSubject = email.subject.toLowerCase()
         const containsCustomerName = emailContent.includes(customerName.toLowerCase()) || 
                                    emailSubject.includes(customerName.toLowerCase())
-        console.log(`🔍 Fallback check for ${email.id}: contains ${customerName}? ${containsCustomerName}`)
         return containsCustomerName
       })
       
       if (fallbackEmails.length > 0) {
-        console.log('🔍 Found fallback emails:', fallbackEmails.length)
         filteredEmails.push(...fallbackEmails)
       } else {
         // If still no emails found, show a message that we'll display all emails
-        console.log('🔍 No customer-specific emails found, will show all emails')
         filteredEmails.push(...rawEmails.slice(0, 5)) // Show first 5 emails as fallback
       }
     }
     
-    console.log('📧 Found emails for customer:', filteredEmails.length)
-    console.log('📧 Email details:', filteredEmails.map(e => ({
-      id: e.id,
-      subject: e.subject,
-      from: e.from.emailAddress.address,
-      hasContent: !!e.body.content,
-      hasPreview: !!e.bodyPreview
-    })))
-    
-    console.log('🔍 Setting modal state:', { customerName, customerEmail, filteredEmailsCount: filteredEmails.length })
     setSelectedCustomer({ name: customerName, email: customerEmail })
     setCustomerEmails(filteredEmails)
     setEmailModalOpen(true)
-    console.log('🔍 Modal should now be open')
   }
 
   const handleCloseEmailModal = () => {

@@ -12,7 +12,6 @@ export async function geocodeAddress(city: string, state: string): Promise<Geoco
   
   // Check cache first
   if (geocodeCache.has(cacheKey)) {
-    console.log('📍 Using cached coordinates for:', cacheKey)
     return geocodeCache.get(cacheKey)!
   }
 
@@ -40,7 +39,6 @@ export async function geocodeAddress(city: string, state: string): Promise<Geoco
       
       // Cache the result
       geocodeCache.set(cacheKey, result)
-      console.log('📍 Geocoded:', cacheKey, '→', result)
       
       return result
     }
@@ -109,7 +107,5 @@ export async function preCacheCommonCities(): Promise<void> {
     { city: 'Washington', state: 'DC' }
   ]
   
-  console.log('📍 Pre-caching common cities...')
   await geocodeBatch(commonCities)
-  console.log('✅ Common cities cached')
 } 

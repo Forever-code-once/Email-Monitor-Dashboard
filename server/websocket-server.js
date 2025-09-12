@@ -24,10 +24,8 @@ class EmailMonitorServer {
       perMessageDeflate: false 
     });
 
-    console.log(`🚀 WebSocket server started on port ${this.PORT}`);
 
     this.wss.on('connection', (ws, req) => {
-      console.log('📱 New client connected from:', req.socket.remoteAddress);
       this.clients.add(ws);
       
       // Send connection confirmation
@@ -50,7 +48,6 @@ class EmailMonitorServer {
       });
 
       ws.on('close', () => {
-        console.log('📱 Client disconnected');
         this.clients.delete(ws);
       });
 
@@ -63,12 +60,10 @@ class EmailMonitorServer {
       this.sendServerStatus();
     });
 
-    console.log('✅ WebSocket server ready for event-driven email monitoring');
   }
 
   // Handle messages from clients
   handleClientMessage(ws, message) {
-    console.log('📨 Received message:', message.type);
     
     switch (message.type) {
       case 'START_MONITORING':
@@ -81,11 +76,9 @@ class EmailMonitorServer {
         this.sendServerStatus();
         break;
       case 'FORCE_CHECK':
-        console.log('🔍 Manual email check requested');
         this.checkForNewEmails();
         break;
       case 'TEST_EMAIL':
-        console.log('🧪 Test email processing requested');
         this.processTestEmail();
         break;
       case 'SET_ACCESS_TOKEN':
@@ -93,7 +86,6 @@ class EmailMonitorServer {
         this.setAccessToken(ws, message.data.token, message.data.expiresAt);
         break;
       case 'REQUEST_DATABASE_UPDATE':
-        console.log('🗄️ Database update requested');
         this.checkDatabaseUpdates();
         break;
       case 'PING':
@@ -104,7 +96,6 @@ class EmailMonitorServer {
         });
         break;
       default:
-        console.log('❓ Unknown message type:', message.type);
     }
   }
 
@@ -112,7 +103,6 @@ class EmailMonitorServer {
   setAccessToken(ws, token, expiresAt) {
     ws.accessToken = token;
     ws.tokenExpiresAt = expiresAt;
-    console.log('🔑 Access token stored for client');
     
     // Send confirmation
     this.sendToClient(ws, {
@@ -124,12 +114,10 @@ class EmailMonitorServer {
   // Start email monitoring (event-driven, no polling)
   startEmailMonitoring() {
     if (this.isMonitoring) {
-      console.log('⚠️ Email monitoring already active');
       return;
     }
 
     this.isMonitoring = true;
-    console.log('✅ Email monitoring started - event-driven mode');
     
     // Do an initial check
     this.checkForNewEmails();
@@ -147,7 +135,6 @@ class EmailMonitorServer {
   // Stop email monitoring
   stopEmailMonitoring() {
     this.isMonitoring = false;
-    console.log('⏹️ Email monitoring stopped');
     
     this.broadcastToAll({
       type: 'MONITORING_STATUS',
@@ -161,12 +148,10 @@ class EmailMonitorServer {
   // Check for new emails using Microsoft Graph API
   async checkForNewEmails() {
     try {
-      console.log('🔍 Checking for new emails...');
       
       // Get access token for Microsoft Graph API
       const accessToken = await this.getAccessToken();
       if (!accessToken) {
-        console.log('⚠️ No access token available, skipping email check');
         return;
       }
 
@@ -177,12 +162,14 @@ class EmailMonitorServer {
         }
       });
 
-      // Get recent emails (last 10 minutes for testing)
+      // Get recent emails from specific account (ai@conardlogistics.com)
+      const targetEmail = process.env.TARGET_EMAIL_ACCOUNT || 'ai@conardlogistics.com';
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       const query = `receivedDateTime ge ${tenMinutesAgo.toISOString()}`;
       
+      
       const response = await graphClient
-        .api('/me/messages')
+        .api(`/users/${targetEmail}/messages`)
         .filter(query)
         .orderby('receivedDateTime desc')
         .top(10)
@@ -190,7 +177,6 @@ class EmailMonitorServer {
         .get();
 
       if (response.value && response.value.length > 0) {
-        console.log(`📧 Found ${response.value.length} recent emails`);
         
         for (const email of response.value) {
           const emailId = email.id;
@@ -200,7 +186,6 @@ class EmailMonitorServer {
             continue;
           }
           
-          console.log(`📧 Processing new email: ${email.subject}`);
           this.knownEmails.add(emailId);
           
           // Process with AI
@@ -232,7 +217,6 @@ class EmailMonitorServer {
           });
         }
       } else {
-        console.log('📭 No new emails found');
       }
       
       this.lastEmailCheck = new Date();
@@ -269,7 +253,6 @@ class EmailMonitorServer {
         }
       }
 
-      console.log('⚠️ No valid access token available from any client');
       return null;
     } catch (error) {
       console.error('❌ Error getting access token:', error);
@@ -296,7 +279,6 @@ class EmailMonitorServer {
       isRead: false
     };
 
-    console.log('🧪 Processing test email:', testEmail.subject);
     
     // Process with AI
     const aiProcessed = await this.processEmailWithAI(testEmail);
@@ -315,7 +297,6 @@ class EmailMonitorServer {
   // Process email with AI using your existing API
   async processEmailWithAI(email) {
     try {
-      console.log(`🤖 Processing email "${email.subject}" with AI...`);
       
       const response = await fetch(`${this.NEXTJS_URL}/api/parse-email`, {
         method: 'POST',
@@ -336,7 +317,6 @@ class EmailMonitorServer {
       }
 
       const result = await response.json();
-      console.log(`✅ AI processing completed for "${email.subject}":`, result);
       return result;
     } catch (error) {
       console.error('❌ Error processing email with AI:', error);
@@ -347,14 +327,12 @@ class EmailMonitorServer {
   // Check for database updates (loads, trucks, etc.)
   async checkDatabaseUpdates() {
     try {
-      console.log('🗄️ Checking for database updates...');
       
       // Check for new loads
       const loadsResponse = await fetch(`${this.NEXTJS_URL}/api/loads`);
       if (loadsResponse.ok) {
         const loadsData = await loadsResponse.json();
         if (loadsData.success && loadsData.loads) {
-          console.log(`📦 Found ${loadsData.loads.length} loads in database`);
           
           this.broadcastToAll({
             type: 'DATABASE_UPDATE',
@@ -373,7 +351,6 @@ class EmailMonitorServer {
       if (trucksResponse.ok) {
         const trucksData = await trucksResponse.json();
         if (trucksData.success) {
-          console.log(`🚛 Found ${trucksData.truckCount || 0} trucks in database`);
           
           this.broadcastToAll({
             type: 'DATABASE_UPDATE',
@@ -422,7 +399,6 @@ class EmailMonitorServer {
     deadClients.forEach(client => this.clients.delete(client));
     
     if (deadClients.length > 0) {
-      console.log(`🧹 Cleaned up ${deadClients.length} dead connections`);
     }
   }
 
@@ -442,13 +418,11 @@ class EmailMonitorServer {
 
   // Graceful shutdown
   stop() {
-    console.log('🛑 Shutting down WebSocket server...');
     
     this.stopEmailMonitoring();
     
     if (this.wss) {
       this.wss.close(() => {
-        console.log('✅ WebSocket server shut down gracefully');
       });
     }
   }

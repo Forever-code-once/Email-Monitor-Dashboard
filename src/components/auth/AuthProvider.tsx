@@ -18,15 +18,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const initializeMsal = async () => {
       try {
-        console.log('🔧 Initializing MSAL instance...')
         // Initialize the MSAL instance first
         await msalInstance.initialize()
-        console.log('✅ MSAL instance initialized successfully')
-        
+
         // Then handle redirect promise
-        console.log('🔄 Handling redirect promise...')
         await msalInstance.handleRedirectPromise()
-        console.log('✅ Redirect promise handled successfully')
         
         setIsInitialized(true)
       } catch (error) {

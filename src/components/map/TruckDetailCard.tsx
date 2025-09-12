@@ -136,7 +136,6 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
   }
 
   const formatDate = (dateString: string) => {
-    console.log('🔍 formatDate called with:', dateString)
     try {
       // Handle different date formats to prevent timezone issues
       let date: Date
@@ -188,7 +187,6 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
         month: 'long',
         day: 'numeric'
       })
-      console.log('🔍 formatDate result:', { input: dateString, output: formattedDate, year: date.getFullYear() })
       return formattedDate
     } catch (error) {
       console.error('Error formatting date:', error, 'dateString:', dateString)
@@ -220,7 +218,6 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
         return index === firstIndex
       })
       
-      console.log(`🔍 Customer ${firstTruck.customer}: ${trucks.length} trucks -> ${uniqueTrucks.length} unique trucks`)
       
       return {
         customer: firstTruck.customer,
@@ -231,15 +228,6 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
   }
 
   const customerGroups = groupTrucksByCustomer()
-  
-  // Debug: Log customer groups and onViewEmails
-  console.log('🔍 TruckDetailCard debug:', {
-    visibleTrucks: visibleTrucks.length,
-    customerGroups: customerGroups.length,
-    customerGroupsDetails: customerGroups.map(g => ({ customer: g.customer, email: g.email, trucks: g.trucks.length })),
-    onViewEmails: !!onViewEmails,
-    buttonDisabled: customerGroups.length === 0 || !onViewEmails
-  })
 
   return (
     <Dialog
@@ -428,7 +416,6 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
            variant="contained" 
            onClick={() => {
              if (customerGroups.length > 0 && onViewEmails) {
-               console.log('🔍 View Emails button clicked for:', customerGroups[0].email)
                onViewEmails(customerGroups[0].email)
              }
            }}

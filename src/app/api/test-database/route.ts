@@ -5,8 +5,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Testing database connection...')
-    
+      
     // Test basic connection
     const isConnected = await testConnection()
     

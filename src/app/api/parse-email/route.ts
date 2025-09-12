@@ -41,13 +41,8 @@ export async function POST(request: NextRequest) {
     
     // Check cache first
     if (aiCache.has(cacheKey)) {
-      console.log('📧 Using cached AI result for:', from.address, subject)
       return NextResponse.json(aiCache.get(cacheKey))
     }
-
-              console.log('📧 Processing email from:', from.name, from.address)
-     console.log('📧 Subject:', subject)
-     console.log('📧 Email body preview:', body.substring(0, 200) + '...')
 
      // Strip HTML tags and decode HTML entities
      const stripHtml = (html: string) => {
@@ -63,7 +58,6 @@ export async function POST(request: NextRequest) {
      }
      
      const cleanBody = stripHtml(body)
-     console.log('📧 Cleaned email body preview:', cleanBody.substring(0, 200) + '...')
      
      // Truncate email body to prevent token limit issues
      const truncatedBody = truncateEmailContent(cleanBody)
@@ -199,10 +193,6 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       throw new Error('No response from OpenAI')
     }
     
-         console.log('🤖 AI Response:', content)
-     console.log('🤖 Expected customer:', from.name, 'Expected email:', from.address)
-     console.log('🤖 Email type check - Is this a forwarded email?', truncatedBody.includes('From:') || truncatedBody.includes('Sent:') || truncatedBody.includes('Original'))
-
     // Clean up the response - remove any markdown formatting
     let cleanContent = content
     if (cleanContent.startsWith('```json')) {
@@ -260,7 +250,6 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       
       try {
         parsedData = JSON.parse(repairedContent)
-        console.log('✅ JSON repaired successfully')
       } catch (repairError) {
         console.error('JSON repair failed:', repairError)
         
@@ -274,7 +263,6 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
             customerEmail: emailMatch ? emailMatch[1] : from.address,
             trucks: []
           }
-          console.log('✅ Extracted customer info manually')
         } else {
           // Final fallback
           parsedData = {
@@ -282,7 +270,6 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
             customerEmail: from.address,
             trucks: []
           }
-          console.log('🔄 Using fallback customer info')
         }
       }
     }
@@ -300,10 +287,6 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
        parsedData.customerEmail = from.address
      }
     
-         console.log('✅ Final customer info:', parsedData.customer, parsedData.customerEmail)
-     console.log('✅ Email sender info:', from.name, from.address)
-     console.log('✅ Customer extraction type: AI extracted original sender')
-
     // Ensure trucks array exists and is valid
     if (!parsedData.trucks || !Array.isArray(parsedData.trucks)) {
       parsedData.trucks = []
@@ -338,21 +321,8 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       parsedData.customer = from.name || from.address.split('@')[0]
     }
 
-         console.log('✅ Successfully parsed email data:', {
-       customer: parsedData.customer,
-       email: parsedData.customerEmail,
-       truckCount: parsedData.trucks.length,
-       trucks: parsedData.trucks.map((t: any) => ({
-         date: t.date,
-         city: t.city,
-         state: t.state,
-         additionalInfo: t.additionalInfo
-       }))
-     })
-
     // Cache the result
     aiCache.set(cacheKey, parsedData)
-    console.log('📧 Cached AI result for:', from.address, subject)
 
     return NextResponse.json(parsedData)
   } catch (error) {
@@ -387,7 +357,6 @@ Return JSON: {"customer":"Name","customerEmail":"email","trucks":[{"date":"Day M
     
          // Final fallback - use actual sender info instead of template
      const { from } = await request.json()
-     console.log('🔄 Using fallback for email from:', from.name, from.address)
      return NextResponse.json({
        customer: from.name || from.address.split('@')[0],
        customerEmail: from.address,

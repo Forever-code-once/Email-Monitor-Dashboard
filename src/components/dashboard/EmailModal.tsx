@@ -30,13 +30,6 @@ interface EmailModalProps {
 }
 
 export function EmailModal({ open, onClose, customerName, customerEmail, emails }: EmailModalProps) {
-  console.log('📧 EmailModal props:', { open, customerName, customerEmail, emailsCount: emails.length })
-  console.log('📧 EmailModal emails:', emails.map(e => ({
-    id: e.id,
-    subject: e.subject,
-    hasContent: !!e.body.content,
-    hasPreview: !!e.bodyPreview
-  })))
   
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
@@ -77,18 +70,7 @@ export function EmailModal({ open, onClose, customerName, customerEmail, emails 
   const sortedEmails = [...emails].sort((a, b) => 
     new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
   )
-  
-  console.log('📧 Sorted emails count:', sortedEmails.length)
-  console.log('📧 First email details:', sortedEmails[0] ? {
-    id: sortedEmails[0].id,
-    subject: sortedEmails[0].subject,
-    hasContent: !!sortedEmails[0].body.content,
-    hasPreview: !!sortedEmails[0].bodyPreview,
-    contentLength: sortedEmails[0].body.content?.length || 0
-  } : 'No emails')
 
-  console.log('📧 EmailModal render - open:', open, 'emails count:', emails.length)
-  
   return (
     <Dialog
       open={open}
