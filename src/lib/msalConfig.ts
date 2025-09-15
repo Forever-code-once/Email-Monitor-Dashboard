@@ -5,11 +5,23 @@ export const msalConfig: Configuration = {
     clientId: process.env.NEXT_PUBLIC_AZURE_CLIENT_ID || '',
     authority: `https://login.microsoftonline.com/${process.env.NEXT_PUBLIC_AZURE_TENANT_ID || 'common'}`,
     redirectUri: typeof window !== 'undefined' ? window.location.origin : '',
+    postLogoutRedirectUri: typeof window !== 'undefined' ? window.location.origin : '',
   },
   cache: {
     cacheLocation: 'sessionStorage',
     storeAuthStateInCookie: false,
   },
+  system: {
+    allowNativeBroker: false, // Disable native broker to force web login
+    loggerOptions: {
+      logLevel: 3, // Error level
+      loggerCallback: (level, message, containsPii) => {
+        if (!containsPii) {
+          console.log(message)
+        }
+      }
+    }
+  }
 }
 
 export const loginRequest: RedirectRequest = {

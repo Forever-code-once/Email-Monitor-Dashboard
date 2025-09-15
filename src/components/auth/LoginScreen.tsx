@@ -17,8 +17,14 @@ export function LoginScreen() {
   const { instance } = useMsal()
 
   const handleLogin = () => {
+    // Clear all cache to force account selection
+    instance.clearCache()
+    
+    // Use popup login with account selection
     instance.loginPopup(loginRequest).catch((e) => {
       console.error('Login failed:', e)
+      // Fallback to redirect if popup fails
+      instance.loginRedirect(loginRequest)
     })
   }
 
@@ -28,10 +34,10 @@ export function LoginScreen() {
         <Box sx={{ mb: 4 }}>
           <Email color="primary" sx={{ fontSize: 64, mb: 2 }} />
           <Typography variant="h4" gutterBottom color="primary" fontWeight="bold">
-            Email Monitor Dashboard
+            Mr. Conard Al Truck & Loads Monitor
           </Typography>
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            AI-Powered Truck Availability Monitoring
+            AI-Powered Truck & Loads Availability Monitoring
           </Typography>
         </Box>
 
@@ -66,11 +72,11 @@ export function LoginScreen() {
         </Button>
 
         <Typography variant="body2" color="warning.main" sx={{ mt: 2, fontWeight: 'bold' }}>
-          ⚠️ Important: Please select "ai@conardlogistics.com" when prompted
+          ⚠️ Important: Please select "ai@conardlogistics.com" 
         </Typography>
 
         <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
-          Sign in to access your email monitoring dashboard
+          Sign in to access your truck & loads monitoring dashboard
         </Typography>
       </Paper>
     </Container>

@@ -44,11 +44,6 @@ export function EmailModal({ open, onClose, customerName, customerEmail, emails 
   }
 
   const formatEmailContent = (content: string): string => {
-    console.log('📧 Formatting email content:', { 
-      originalLength: content?.length || 0,
-      hasContent: !!content,
-      preview: content?.substring(0, 100)
-    })
     
     if (!content) {
       console.warn('⚠️ No email content provided to formatEmailContent')
@@ -62,7 +57,6 @@ export function EmailModal({ open, onClose, customerName, customerEmail, emails 
       .replace(/\n{3,}/g, '\n\n') // Reduce multiple line breaks
       .trim()
     
-    console.log('📧 Formatted content length:', formatted.length)
     return formatted
   }
 
