@@ -25,6 +25,10 @@ class TruckWebSocketServer {
 
   async start(port = 8081) {
     try {
+      // Wait for database to be ready before starting WebSocket server
+      console.log('⏳ Waiting for database connection...')
+      await this.waitForDatabase()
+      
       this.wss = new WebSocket.Server({ port })
       console.log(`🚛 Truck WebSocket server started on port ${port}`)
 
@@ -52,6 +56,29 @@ class TruckWebSocketServer {
     } catch (error) {
       console.error('❌ Failed to start truck WebSocket server:', error)
     }
+  }
+
+  async waitForDatabase(maxRetries = 10, retryDelay = 2000) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        console.log(`🔄 Attempting database connection (${i + 1}/${maxRetries})...`)
+        const connection = await mysql.createConnection(this.dbConfig)
+        
+        // Test the connection with a simple query
+        await connection.execute('SELECT 1')
+        await connection.end()
+        
+        console.log('✅ Database connection successful')
+        return true
+      } catch (error) {
+        console.log(`❌ Database connection failed (attempt ${i + 1}):`, error.message)
+        if (i < maxRetries - 1) {
+          console.log(`⏳ Retrying in ${retryDelay}ms...`)
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+        }
+      }
+    }
+    throw new Error('Failed to connect to database after maximum retries')
   }
 
   async startTruckMonitoring() {

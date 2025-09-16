@@ -24,6 +24,11 @@ class EmailMonitorServer {
       perMessageDeflate: false 
     });
 
+    console.log(`📧 Email WebSocket server started on port ${this.PORT}`);
+    console.log('🔍 Starting automatic email monitoring...');
+
+    // Start email monitoring automatically
+    this.startEmailMonitoring();
 
     this.wss.on('connection', (ws, req) => {
       this.clients.add(ws);
@@ -111,23 +116,32 @@ class EmailMonitorServer {
     });
   }
 
-  // Start email monitoring (event-driven, no polling)
+  // Start email monitoring (polling every 2 minutes)
   startEmailMonitoring() {
     if (this.isMonitoring) {
+      console.log('📧 Email monitoring already active');
       return;
     }
 
     this.isMonitoring = true;
+    console.log('📧 Starting email monitoring...');
     
     // Do an initial check
     this.checkForNewEmails();
+
+    // Set up periodic checking every 2 minutes
+    this.monitoringInterval = setInterval(() => {
+      console.log('🔍 Checking for new emails...');
+      this.checkForNewEmails();
+    }, 2 * 60 * 1000); // 2 minutes
 
     this.broadcastToAll({
       type: 'MONITORING_STATUS',
       data: { 
         active: true, 
-        mode: 'event-driven',
-        message: 'Email monitoring started - event-driven mode'
+        mode: 'polling',
+        interval: '2 minutes',
+        message: 'Email monitoring started - polling every 2 minutes'
       }
     });
   }
@@ -135,6 +149,13 @@ class EmailMonitorServer {
   // Stop email monitoring
   stopEmailMonitoring() {
     this.isMonitoring = false;
+    
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
+    }
+    
+    console.log('📧 Email monitoring stopped');
     
     this.broadcastToAll({
       type: 'MONITORING_STATUS',
@@ -148,12 +169,16 @@ class EmailMonitorServer {
   // Check for new emails using Microsoft Graph API
   async checkForNewEmails() {
     try {
+      console.log('🔍 Checking for new emails...');
       
       // Get access token for Microsoft Graph API
       const accessToken = await this.getAccessToken();
       if (!accessToken) {
+        console.log('❌ No access token available for email monitoring');
         return;
       }
+      
+      console.log('✅ Access token obtained, querying Microsoft Graph API...');
 
       // Create Graph client
       const graphClient = Client.init({
