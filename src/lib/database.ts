@@ -224,6 +224,55 @@ export const databaseQueries = {
     return executeQuery(query, params)
   },
 
+  // Save or update customer data
+  async saveCustomer(customerData: {
+    customerName: string
+    customerEmail: string
+    firstSeen: string
+    lastSeen: string
+  }) {
+    // First check if customer exists
+    const checkQuery = `
+      SELECT Id FROM Customers WHERE CustomerEmail = @customerEmail
+    `
+    
+    const checkParams = [
+      { name: 'customerEmail', type: sql.NVarChar, value: customerData.customerEmail }
+    ]
+    
+    const existing = await executeQuery(checkQuery, checkParams)
+    
+    if (existing.length > 0) {
+      // Update existing customer
+      const updateQuery = `
+        UPDATE Customers 
+        SET CustomerName = @customerName, LastSeen = GETDATE(), UpdatedAt = GETDATE()
+        WHERE CustomerEmail = @customerEmail
+      `
+      
+      const updateParams = [
+        { name: 'customerName', type: sql.NVarChar, value: customerData.customerName },
+        { name: 'customerEmail', type: sql.NVarChar, value: customerData.customerEmail }
+      ]
+      
+      return executeQuery(updateQuery, updateParams)
+    } else {
+      // Insert new customer
+      const insertQuery = `
+        INSERT INTO Customers 
+        (CustomerName, CustomerEmail, FirstSeen, LastSeen, CreatedAt)
+        VALUES (@customerName, @customerEmail, GETDATE(), GETDATE(), GETDATE())
+      `
+      
+      const insertParams = [
+        { name: 'customerName', type: sql.NVarChar, value: customerData.customerName },
+        { name: 'customerEmail', type: sql.NVarChar, value: customerData.customerEmail }
+      ]
+      
+      return executeQuery(insertQuery, insertParams)
+    }
+  },
+
   // Get available loads from database (based on your PHP query)
   async getAvailableLoads() {
     const query = `

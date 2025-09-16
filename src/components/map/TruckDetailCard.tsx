@@ -115,23 +115,44 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
     saveState(deletedTrucks, Array.from(newChecked))
   }
 
-  const handleDeleteTruck = (truckId: string) => {
-    // Remove from visible trucks
-    setVisibleTrucks(prev => prev.filter(truck => truck.id !== truckId))
-    
-    // Remove from checked trucks
-    const newChecked = new Set(checkedTrucks)
-    newChecked.delete(truckId)
-    setCheckedTrucks(newChecked)
-    
-    // Save to localStorage
-    const deletedTrucks = JSON.parse(localStorage.getItem(`truck-state-${pin.city}-${pin.state}-deleted`) || '[]')
-    const newDeleted = [...deletedTrucks, truckId]
-    saveState(newDeleted, Array.from(newChecked))
-    
-    // Notify parent component to refresh map
-    if (onTruckDeleted) {
-      onTruckDeleted()
+  const handleDeleteTruck = async (truckId: string) => {
+    try {
+      console.log(`🗑️ DELETING TRUCK: ${truckId}`)
+      
+      // Call AWS RDS delete API
+      const response = await fetch('/api/trucks/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ truckId }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      if (result.success) {
+        console.log(`✅ TRUCK DELETED: ${truckId}`)
+        
+        // Remove from visible trucks immediately (UI only)
+        setVisibleTrucks(prev => prev.filter(truck => truck.id !== truckId))
+        
+        // Remove from checked trucks
+        const newChecked = new Set(checkedTrucks)
+        newChecked.delete(truckId)
+        setCheckedTrucks(newChecked)
+        
+        // DO NOT refresh the system - just update UI locally
+        console.log(`🎯 Truck marked as deleted in database, UI updated locally`)
+      } else {
+        throw new Error(result.error || 'Failed to delete truck')
+      }
+    } catch (error) {
+      console.error('❌ Error deleting truck:', error)
+      alert('Failed to delete truck. Please try again.')
     }
   }
 

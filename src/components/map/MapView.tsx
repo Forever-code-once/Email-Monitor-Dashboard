@@ -54,9 +54,10 @@ interface MapViewProps {
   mapRefreshTrigger?: number
   onDateChange?: (date: Date) => void
   onLoadsCountChange?: (count: number) => void
+  onTruckDeleted?: () => void
 }
 
-export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, onDateChange, onLoadsCountChange }: MapViewProps) {
+export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, onDateChange, onLoadsCountChange, onTruckDeleted }: MapViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null)
   
@@ -571,9 +572,12 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
   }
 
   const handleTruckDeleted = () => {
-    // Refresh the map pins to reflect the deletion
-    if (initialized && !isNaN(selectedDate.getTime())) {
-      createMapPins(selectedDate, dateRange)
+    // DO NOT refresh the map - just notify parent component
+    console.log('🎯 Truck deleted, UI updated locally (no map refresh)')
+    
+    // Notify parent component (Dashboard) - but no system refresh
+    if (onTruckDeleted) {
+      onTruckDeleted()
     }
   }
 

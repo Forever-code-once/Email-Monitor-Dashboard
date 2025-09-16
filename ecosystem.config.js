@@ -57,6 +57,40 @@ module.exports = {
       log_file: './logs/websocket-combined.log',
       time: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    {
+      name: 'truck-websocket-server',
+      script: './server/truck-websocket-server.js',
+      cwd: process.cwd(),
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      env: {
+        NODE_ENV: 'production',
+        WEBSOCKET_PORT: 8081,
+        // AWS RDS MySQL Database Configuration
+        AWS_RDS_HOST: process.env.AWS_RDS_HOST,
+        AWS_RDS_DATABASE: process.env.AWS_RDS_DATABASE,
+        AWS_RDS_USER: process.env.AWS_RDS_USER,
+        AWS_RDS_PASSWORD: process.env.AWS_RDS_PASSWORD,
+        AWS_RDS_PORT: process.env.AWS_RDS_PORT || '3306'
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        WEBSOCKET_PORT: 8081,
+        // AWS RDS MySQL Database Configuration
+        AWS_RDS_HOST: process.env.AWS_RDS_HOST,
+        AWS_RDS_DATABASE: process.env.AWS_RDS_DATABASE,
+        AWS_RDS_USER: process.env.AWS_RDS_USER,
+        AWS_RDS_PASSWORD: process.env.AWS_RDS_PASSWORD,
+        AWS_RDS_PORT: process.env.AWS_RDS_PORT || '3306'
+      },
+      error_file: './logs/truck-websocket-error.log',
+      out_file: './logs/truck-websocket-out.log',
+      log_file: './logs/truck-websocket-combined.log',
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
   ]
 };

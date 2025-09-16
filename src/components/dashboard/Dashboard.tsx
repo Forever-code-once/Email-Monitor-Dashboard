@@ -25,6 +25,7 @@ import { isForwardedEmail, extractOriginalSenderFromForwardedEmail, stripHtmlTag
 import { parseEmailWithAI } from '@/lib/emailParser'
 import { EmailMessage, EmailSenderCard, EmailItem, CustomerCard, TruckAvailability, ParsedEmailData } from '@/types'
 import { loginRequest } from '@/lib/msalConfig'
+import { truckWebSocketClient } from '@/lib/truckWebSocket'
 import { EmailSenderCard as EmailSenderCardComponent } from './EmailSenderCard'
 import { CustomerCard as CustomerCardComponent } from './CustomerCard'
 import { EmailModal } from './EmailModal'
@@ -614,6 +615,66 @@ export function Dashboard() {
     )
   }
 
+  // Load stored truck data from database
+  const loadStoredTruckData = async (filterDate?: Date) => {
+    try {
+      const dateParam = filterDate ? filterDate.toISOString().split('T')[0] : ''
+      const url = `/api/trucks/stored${dateParam ? `?date=${dateParam}` : ''}`
+      
+      console.log(`🔄 Loading stored truck data from database: ${url}`)
+      
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      console.log('📊 Database response:', result)
+      
+      if (result.success && Array.isArray(result.trucks)) {
+        console.log(`💾 Database returned ${result.trucks.length} trucks (${result.totalInDatabase} total in database)`)
+        
+        // Convert database format to CustomerCard format
+        const customerMap = new Map<string, CustomerCard>()
+        
+        result.trucks.forEach((truck: any) => {
+          const customerKey = truck.customerEmail || 'unknown@example.com'
+          
+          if (customerMap.has(customerKey)) {
+            customerMap.get(customerKey)!.trucks.push(truck)
+          } else {
+            customerMap.set(customerKey, {
+              customer: truck.customer,
+              customerEmail: customerKey,
+              trucks: [truck],
+              lastEmailDate: new Date(truck.emailDate || Date.now())
+            })
+          }
+        })
+        
+        const customerCards = Array.from(customerMap.values())
+        console.log(`👥 Created ${customerCards.length} customer cards from stored data`)
+        
+        setCustomerCards(customerCards)
+        
+        const message = filterDate 
+          ? `Loaded ${result.trucks.length} trucks for ${filterDate.toLocaleDateString()}`
+          : `Loaded ${result.trucks.length} trucks from database`
+        showNotification(message, 'success', 3000)
+        
+        return result.trucks.length
+      } else {
+        console.log('📭 No stored truck data found')
+        setCustomerCards([])
+        return 0
+      }
+    } catch (error) {
+      console.error('❌ Error loading stored truck data:', error)
+      setError('Failed to load stored truck data from database')
+      return 0
+    }
+  }
+
   const fetchAndProcessEmails = async () => {
     // Double-check authentication before proceeding
     const activeAccount = instance.getActiveAccount()
@@ -669,13 +730,133 @@ export function Dashboard() {
   }
 
   useEffect(() => {
-    // Initial email fetch when authenticated
+    // Initial data loading when authenticated
     if (isAuthenticated && hasActiveAccount) {
-      const timer = setTimeout(() => {
-        fetchAndProcessEmails()
+      const timer = setTimeout(async () => {
+        console.log('🚀 Starting initial data loading...')
+        
+        // First, load stored truck data from database
+        const storedCount = await loadStoredTruckData()
+        console.log(`💾 Loaded ${storedCount} trucks from database`)
+        
+        // If database is empty, process emails to populate it
+        if (storedCount === 0) {
+          console.log('📧 Database is empty, processing emails to populate truck data...')
+          await fetchAndProcessEmails()
+        } else {
+          console.log('✅ Database has data, using real-time monitoring only')
+        }
+        
+        console.log('✅ Initial data loading complete')
       }, 500)
       
       return () => clearTimeout(timer)
+    }
+  }, [isAuthenticated, hasActiveAccount])
+
+  // Real-time WebSocket handlers for truck data
+  useEffect(() => {
+    if (!isAuthenticated || !hasActiveAccount) return
+
+    console.log('🔌 Setting up truck WebSocket handlers...')
+
+    // Handle initial truck data
+    const handleTruckDataInit = (data: any) => {
+      console.log('📊 Received initial truck data:', data.totalCount, 'trucks')
+      // Convert database format to frontend format
+      const formattedTrucks = data.trucks.map((truck: any) => ({
+        id: truck.id,
+        customer: truck.customer,
+        customerEmail: truck.customer_email,
+        date: truck.date,
+        city: truck.city,
+        state: truck.state,
+        additionalInfo: truck.additional_info,
+        emailId: truck.email_id,
+        emailSubject: truck.email_subject,
+        emailDate: truck.email_date,
+        isDeleted: truck.is_deleted === 1,
+        deletedDate: truck.deleted_date,
+        isChecked: false
+      }))
+      
+      // Convert to customer cards format
+      const customerMap = new Map<string, CustomerCard>()
+      formattedTrucks.forEach((truck: any) => {
+        const customerKey = truck.customerEmail.toLowerCase()
+        if (customerMap.has(customerKey)) {
+          customerMap.get(customerKey)!.trucks.push(truck)
+        } else {
+          customerMap.set(customerKey, {
+            customer: truck.customer,
+            customerEmail: truck.customerEmail,
+            trucks: [truck],
+            lastEmailDate: new Date(truck.emailDate)
+          })
+        }
+      })
+      
+      setCustomerCards(Array.from(customerMap.values()))
+    }
+
+    // Handle truck data updates
+    const handleTruckDataUpdate = (data: any) => {
+      console.log('🔄 Received truck data update:', data.totalCount, 'trucks')
+      // Same conversion as above
+      const formattedTrucks = data.trucks.map((truck: any) => ({
+        id: truck.id,
+        customer: truck.customer,
+        customerEmail: truck.customer_email,
+        date: truck.date,
+        city: truck.city,
+        state: truck.state,
+        additionalInfo: truck.additional_info,
+        emailId: truck.email_id,
+        emailSubject: truck.email_subject,
+        emailDate: truck.email_date,
+        isDeleted: truck.is_deleted === 1,
+        deletedDate: truck.deleted_date,
+        isChecked: false
+      }))
+      
+      const customerMap = new Map<string, CustomerCard>()
+      formattedTrucks.forEach((truck: any) => {
+        const customerKey = truck.customerEmail.toLowerCase()
+        if (customerMap.has(customerKey)) {
+          customerMap.get(customerKey)!.trucks.push(truck)
+        } else {
+          customerMap.set(customerKey, {
+            customer: truck.customer,
+            customerEmail: truck.customerEmail,
+            trucks: [truck],
+            lastEmailDate: new Date(truck.emailDate)
+          })
+        }
+      })
+      
+      setCustomerCards(Array.from(customerMap.values()))
+    }
+
+    // Handle truck deletion
+    const handleTruckDeleted = (data: any) => {
+      console.log('🗑️ Received truck deletion notification:', data.truckId)
+      // Remove truck from customer cards
+      setCustomerCards(prev => prev.map(card => ({
+        ...card,
+        trucks: card.trucks.filter(truck => truck.id !== data.truckId)
+      })).filter(card => card.trucks.length > 0))
+    }
+
+    // Register event handlers
+    truckWebSocketClient.on('truckDataInit', handleTruckDataInit)
+    truckWebSocketClient.on('truckDataUpdate', handleTruckDataUpdate)
+    truckWebSocketClient.on('truckDeleted', handleTruckDeleted)
+
+    // Cleanup on unmount
+    return () => {
+      truckWebSocketClient.off('truckDataInit', handleTruckDataInit)
+      truckWebSocketClient.off('truckDataUpdate', handleTruckDataUpdate)
+      truckWebSocketClient.off('truckDeleted', handleTruckDeleted)
     }
   }, [isAuthenticated, hasActiveAccount])
 
@@ -683,11 +864,26 @@ export function Dashboard() {
     instance.logoutPopup()
   }
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     if (isAuthenticated && hasActiveAccount) {
-      // Clear existing customer cards to remove any simulated data
+      console.log('🔄 Manual refresh triggered...')
+      
+      // Clear existing customer cards
       setCustomerCards([])
-      fetchAndProcessEmails()
+      
+      // Reload stored truck data from database
+      const storedCount = await loadStoredTruckData()
+      console.log(`💾 Refreshed with ${storedCount} trucks from database`)
+      
+      // If database is empty, process emails to populate it
+      if (storedCount === 0) {
+        console.log('📧 Database is empty, processing emails to populate truck data...')
+        await fetchAndProcessEmails()
+      } else {
+        console.log('✅ Database has data, using real-time monitoring only')
+      }
+      
+      console.log('✅ Manual refresh complete')
     }
   }
 
@@ -1104,6 +1300,10 @@ export function Dashboard() {
               mapRefreshTrigger={mapRefreshTrigger}
               onDateChange={handleDateChange}
               onLoadsCountChange={handleLoadsCountChange}
+              onTruckDeleted={() => {
+                console.log('🎯 Truck deleted, UI updated locally (no system refresh)')
+                // DO NOT refresh the system - just log the deletion
+              }}
             />
           ) : viewMode === 'customers' ? (
             customerCards.length > 0 ? (

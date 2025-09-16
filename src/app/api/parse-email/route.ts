@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { awsDatabaseQueries } from '@/lib/awsDatabase'
 
 // Simple in-memory cache for AI processing results
 const aiCache = new Map<string, any>()
@@ -30,6 +31,81 @@ function truncateEmailContent(content: string, maxLength: number = 8000): string
   }
   
   return truncated + '...'
+}
+
+// Function to store parsed truck data to database
+async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
+  try {
+    console.log(`💾 STORING: ${parsedData.trucks?.length || 0} trucks from ${parsedData.customer}`)
+    
+    // First, save the email record
+    const emailRecord = {
+      emailId: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Generate unique ID
+      subject: emailData.subject,
+      fromEmail: emailData.from.address,
+      fromName: emailData.from.name || emailData.from.address.split('@')[0],
+      body: emailData.body,
+      receivedDateTime: new Date().toISOString(),
+      isForwarded: emailData.subject.toLowerCase().includes('fw:') || emailData.subject.toLowerCase().includes('fwd:'),
+      originalSender: extractOriginalSender(emailData.body) || undefined
+    }
+    
+    // Save email to database
+    await awsDatabaseQueries.saveEmail(emailRecord)
+    
+    // Save customer record
+    const customerRecord = {
+      customerName: parsedData.customer,
+      customerEmail: parsedData.customerEmail,
+      firstSeen: new Date().toISOString(),
+      lastSeen: new Date().toISOString()
+    }
+    
+    // Save or update customer
+    await awsDatabaseQueries.saveCustomer(customerRecord)
+    
+    // Save each truck availability record
+    if (parsedData.trucks && Array.isArray(parsedData.trucks)) {
+      for (const truck of parsedData.trucks) {
+        const truckRecord = {
+          customer: parsedData.customer,
+          customerEmail: parsedData.customerEmail,
+          date: truck.date,
+          city: truck.city,
+          state: truck.state,
+          additionalInfo: truck.additionalInfo || '',
+          emailId: emailRecord.emailId,
+          emailSubject: emailData.subject,
+          emailDate: new Date().toISOString()
+        }
+        
+        await awsDatabaseQueries.saveTruckAvailability(truckRecord)
+      }
+    }
+    
+    console.log(`✅ STORED: ${parsedData.trucks?.length || 0} trucks successfully`)
+  } catch (error) {
+    console.error('❌ Error storing truck data to database:', error)
+    // Don't throw error - continue with email parsing even if database fails
+  }
+}
+
+// Extract original sender from forwarded email body
+function extractOriginalSender(body: string): string | null {
+  const forwardPatterns = [
+    /From:\s*([^\r\n<]+)/i,
+    /Sent by:\s*([^\r\n<]+)/i,
+    /Originally sent by:\s*([^\r\n<]+)/i
+  ]
+  
+  for (const pattern of forwardPatterns) {
+    const match = body.match(pattern)
+    if (match) {
+      return match[1].trim()
+    }
+  }
+  
+  return null
 }
 
 export async function POST(request: NextRequest) {
@@ -91,6 +167,10 @@ Instructions:
    - City, State format like "Midland, TX" or "Nashville, TN" ... etc.
    - Multiple locations listed under each date
    - Bullet points or line items with locations
+   - ROUTE ARROWS: "NASHVILLE → MEMPHIS, TN", "NASHVILLE à MEMPHIS, TN", "NASHVILLE - MEMPHIS, TN", "NASHVILLE to MEMPHIS, TN"
+   - QUANTITY MULTIPLIERS: "Kansas City, MO – X 4", "St Joseph, MO X 2", "Cherokee, ALx2"
+   - STATUS EXCLUSIONS: Skip trucks marked as "Covered", "Not Available", "Assigned", "Booked"
+   - OUTBOUND FORMAT: "La Vergne, TN Outbound (250 mile radius)" = extract "La Vergne, TN"
 3. For SIMPLE FORMAT emails (just date + location), extract as a single truck entry
 4. For TABLE FORMAT emails, extract each row as a separate truck entry
 5. For LONG TABLES (20+ rows), process ALL rows systematically - do not truncate or summarize
@@ -153,6 +233,29 @@ NOTE: 9/08 AM = September 9th, 8:00 AM (day 9, hour 8) -> convert to "09/09"
 NOTE: 9/09 AM = September 9th, 9:00 AM (day 9, hour 9) -> convert to "09/09"
 NOTE: 10/05 AM = September 10th, 5:00 AM (day 10, hour 5) -> convert to "09/10"
 
+ROUTE ARROW FORMATS (extract ORIGIN city as truck location):
+"NASHVILLE → MEMPHIS, TN" -> extract: city="Nashville", state="TN", additionalInfo="→ MEMPHIS, TN"
+"MEMPHIS → NASHVILLE, TN" -> extract: city="Memphis", state="TN", additionalInfo="→ NASHVILLE, TN"  
+"KNOXVILLE, TN → NASHVILLE, TN/MEMPHIS, TN" -> extract: city="Knoxville", state="TN"
+"INDIANAPOLIS, IN → TN" -> extract: city="Indianapolis", state="IN"
+"NASHVILLE à MEMPHIS, TN" -> extract: city="Nashville", state="TN", additionalInfo="à MEMPHIS, TN"
+
+QUANTITY MULTIPLIER FORMATS (create multiple truck entries):
+"Kansas City, MO – X 4" -> create 4 separate trucks all at Kansas City, MO
+"St Joseph, MO X 2" -> create 2 separate trucks at St Joseph, MO
+"Cherokee, ALx2" -> create 2 separate trucks at Cherokee, AL
+"Memphis, TN – X 2" -> create 2 separate trucks at Memphis, TN
+
+OUTBOUND RADIUS FORMATS:
+"La Vergne, TN Outbound (250 mile radius)" -> extract: city="La Vergne", state="TN"
+"Edwardsville, KS Outbound" -> extract: city="Edwardsville", state="KS"
+
+STATUS EXCLUSION FORMATS (SKIP these entries):
+"Tuesday 9-16: Covered" -> SKIP (covered means unavailable)
+"Thursday 9-18: Not Available" -> SKIP
+"Monday 9-15: Assigned" -> SKIP  
+"Friday 9-19: Booked" -> SKIP
+
 Both should extract as separate truck entries for each location with their respective dates.
 
 Return ONLY valid JSON:
@@ -177,7 +280,7 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       messages: [
                                    {
             role: "system",
-                        content: "You extract ALL truck availability data from emails. Handle simple formats (just date + location), table formats, and list formats. Process EVERY row in tables, no matter how long. Look for every location mentioned. Return ONLY valid JSON with unique city/state combinations. For table formats with 20+ rows, process ALL rows systematically. CRITICAL: Use EMAIL ADDRESS as the primary customer identifier since same names can send from different email addresses. EXAMPLE: 'John Grathwohl <jgrathwohl@outlook.com>' and 'John Grathwohl <jgrathwohl@conardtransportation.com>' are DIFFERENT customers. ALWAYS look for the original sender in the email body using patterns like 'From:', 'Original From:', 'Sent by:', 'Original sender:', etc. CRITICAL: Do NOT create duplicate entries - each unique truck should appear only once. IMPORTANT: Handle special DATE/TIME formats like '9/08 AM', '9/09 AM' - interpret as DAY/TIME format where first number is day, second is hour, assume current month. '9/08 AM' = September 9th, 8:00 AM -> convert to '09/09'. '9/09 AM' = September 9th, 9:00 AM -> convert to '09/09'. '10/05 AM' = September 10th, 5:00 AM -> convert to '09/10'. Always use 2-digit month and day format. IMPORTANT: Return ONLY the JSON object, no additional text, markdown, or explanations."
+                        content: "🚛 METICULOUS TRUCK COUNTER: Extract EVERY SINGLE available truck from emails. Count each truck location separately. Be extremely thorough - missing trucks causes business impact. CRITICAL PARSING RULES: 1) ROUTE ARROWS: 'NASHVILLE → MEMPHIS, TN' = extract ORIGIN (Nashville, TN). 2) QUANTITY MULTIPLIERS: 'Kansas City, MO – X 4' = create 4 separate trucks. 3) STATUS EXCLUSIONS: Skip 'Covered', 'Not Available', 'Assigned', 'Booked'. 4) OUTBOUND FORMAT: 'La Vergne, TN Outbound' = extract 'La Vergne, TN'. 5) EMAIL ADDRESSES: Use as primary customer identifier. 6) FORWARDED EMAILS: Extract original sender from body. 7) TABLE PROCESSING: Process ALL rows systematically. 8) DATE FORMATS: Handle 'MM/DD', 'YYYY-MM-DD', '9/08 AM' (day/hour). 9) MULTIPLE ENTRIES: Each location mention = separate truck. COUNT EVERY SINGLE TRUCK METICULOUSLY. Return ONLY valid JSON."
           },
         {
           role: "user",
@@ -320,6 +423,9 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
     if (!parsedData.customer) {
       parsedData.customer = from.name || from.address.split('@')[0]
     }
+
+    // Store parsed truck data in database
+    await storeTruckDataToDatabase(parsedData, { subject, body, from })
 
     // Cache the result
     aiCache.set(cacheKey, parsedData)
