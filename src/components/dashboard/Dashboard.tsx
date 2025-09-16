@@ -655,6 +655,16 @@ export function Dashboard() {
         const customerCards = Array.from(customerMap.values())
         console.log(`👥 Created ${customerCards.length} customer cards from stored data`)
         
+        // Debug: Log the first few customer cards
+        customerCards.slice(0, 3).forEach((card, index) => {
+          console.log(`📋 Customer Card ${index}:`, {
+            customer: card.customer,
+            email: card.customerEmail,
+            truckCount: card.trucks.length,
+            trucks: card.trucks.map(t => ({ date: t.date, city: t.city, state: t.state }))
+          })
+        })
+        
         setCustomerCards(customerCards)
         
         const message = filterDate 
@@ -1087,16 +1097,37 @@ export function Dashboard() {
       day: '2-digit'
     })
 
+    console.log(`🔍 CALCULATING COUNTS for date: ${selectedDateStr}`)
+    console.log(`📊 Total customerCards: ${customerCards.length}`)
+
     let trucksCount = 0
     let customersCount = 0
     const customersWithTrucks = new Set<string>()
 
-    customerCards.forEach(card => {
+    customerCards.forEach((card, cardIndex) => {
+      console.log(`👥 Customer ${cardIndex}: ${card.customer} (${card.trucks.length} trucks)`)
       let hasTrucksForDate = false
-      card.trucks.forEach((truck: any) => {
-        if (truck.date === selectedDateStr) {
+      card.trucks.forEach((truck: any, truckIndex: number) => {
+        console.log(`  🚛 Truck ${truckIndex}: date="${truck.date}", city="${truck.city}", state="${truck.state}"`)
+        
+        // Normalize both dates for comparison (remove leading zeros)
+        const normalizeDate = (dateStr: string) => {
+          if (dateStr.includes('/')) {
+            const [month, day] = dateStr.split('/')
+            return `${parseInt(month)}/${parseInt(day)}`
+          }
+          return dateStr
+        }
+        
+        const normalizedTruckDate = normalizeDate(truck.date)
+        const normalizedSelectedDate = normalizeDate(selectedDateStr)
+        
+        console.log(`    🔍 Comparing: "${normalizedTruckDate}" === "${normalizedSelectedDate}"`)
+        
+        if (normalizedTruckDate === normalizedSelectedDate) {
           trucksCount++
           hasTrucksForDate = true
+          console.log(`    ✅ MATCH! Added to count. Total: ${trucksCount}`)
         }
       })
       if (hasTrucksForDate) {
@@ -1105,6 +1136,7 @@ export function Dashboard() {
     })
 
     customersCount = customersWithTrucks.size
+    console.log(`📈 FINAL COUNTS: ${trucksCount} trucks, ${customersCount} customers`)
     setFilteredTrucksCount(trucksCount)
     setFilteredCustomersCount(customersCount)
   }, [selectedDate, customerCards])
