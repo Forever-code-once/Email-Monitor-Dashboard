@@ -395,12 +395,8 @@ export function Dashboard() {
           }
         })
 
-        // Update progress and UI progressively after each batch
+        // Update progress only (don't update UI with parsed data)
         setAiProgress({ processed: processedCount, total: emails.length })
-        const customerCardsArray = Array.from(customerMap.values()).sort((a, b) => 
-          b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
-        )
-        setCustomerCards(customerCardsArray)
 
         // Shorter delay between batches for faster processing
         if (i + batchSize < emails.length) {
@@ -413,7 +409,12 @@ export function Dashboard() {
         b.lastEmailDate.getTime() - a.lastEmailDate.getTime()
       )
 
-      setCustomerCards(finalCustomerCardsArray)
+      // Don't set customer cards from parsed data - reload from database instead
+      // setCustomerCards(finalCustomerCardsArray)
+      
+      // Reload truck data from database after processing
+      console.log('🔄 Reloading truck data from database after email processing...')
+      await loadStoredTruckData()
       
       const totalTrucks = finalCustomerCardsArray.reduce((sum, card) => sum + card.trucks.length, 0)
       

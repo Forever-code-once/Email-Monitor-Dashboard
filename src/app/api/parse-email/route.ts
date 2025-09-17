@@ -168,7 +168,7 @@ Instructions:
    - Multiple locations listed under each date
    - Bullet points or line items with locations
    - ROUTE ARROWS: "NASHVILLE → MEMPHIS, TN", "NASHVILLE à MEMPHIS, TN", "NASHVILLE - MEMPHIS, TN", "NASHVILLE to MEMPHIS, TN"
-   - QUANTITY MULTIPLIERS: "Kansas City, MO – X 4", "St Joseph, MO X 2", "Cherokee, ALx2"
+   - QUANTITY MULTIPLIERS: "City, State – X [NUMBER]" = create [NUMBER] separate trucks (e.g., "Memphis, TN – X 5" = 5 trucks, "Kansas City, MO – X 100" = 100 trucks)
    - STATUS EXCLUSIONS: Skip trucks marked as "Covered", "Not Available", "Assigned", "Booked"
    - OUTBOUND FORMAT: "La Vergne, TN Outbound (250 mile radius)" = extract "La Vergne, TN"
 3. For SIMPLE FORMAT emails (just date + location), extract as a single truck entry
@@ -239,12 +239,10 @@ ROUTE ARROW FORMATS (extract ORIGIN city as truck location):
 "KNOXVILLE, TN → NASHVILLE, TN/MEMPHIS, TN" -> extract: city="Knoxville", state="TN"
 "INDIANAPOLIS, IN → TN" -> extract: city="Indianapolis", state="IN"
 "NASHVILLE à MEMPHIS, TN" -> extract: city="Nashville", state="TN", additionalInfo="à MEMPHIS, TN"
+"La Vergne, TN to High Point, NC" -> extract: city="La Vergne", state="TN", additionalInfo="to High Point, NC"
 
 QUANTITY MULTIPLIER FORMATS (create multiple truck entries):
-"Kansas City, MO – X 4" -> create 4 separate trucks all at Kansas City, MO
-"St Joseph, MO X 2" -> create 2 separate trucks at St Joseph, MO
-"Cherokee, ALx2" -> create 2 separate trucks at Cherokee, AL
-"Memphis, TN – X 2" -> create 2 separate trucks at Memphis, TN
+PATTERN: "City, State [dash/space] X [NUMBER]" -> extract: [NUMBER] separate trucks at that location
 
 OUTBOUND RADIUS FORMATS:
 "La Vergne, TN Outbound (250 mile radius)" -> extract: city="La Vergne", state="TN"
@@ -280,7 +278,7 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       messages: [
                                    {
             role: "system",
-                        content: "🚛 METICULOUS TRUCK COUNTER: Extract EVERY SINGLE available truck from emails. Count each truck location separately. Be extremely thorough - missing trucks causes business impact. CRITICAL PARSING RULES: 1) ROUTE ARROWS: 'NASHVILLE → MEMPHIS, TN' = extract ORIGIN (Nashville, TN). 2) QUANTITY MULTIPLIERS: 'Kansas City, MO – X 4' = create 4 separate trucks. 3) STATUS EXCLUSIONS: Skip 'Covered', 'Not Available', 'Assigned', 'Booked'. 4) OUTBOUND FORMAT: 'La Vergne, TN Outbound' = extract 'La Vergne, TN'. 5) EMAIL ADDRESSES: Use as primary customer identifier. 6) FORWARDED EMAILS: Extract original sender from body. 7) TABLE PROCESSING: Process ALL rows systematically. 8) DATE FORMATS: Handle 'MM/DD', 'YYYY-MM-DD', '9/08 AM' (day/hour). 9) MULTIPLE ENTRIES: Each location mention = separate truck. COUNT EVERY SINGLE TRUCK METICULOUSLY. Return ONLY valid JSON."
+                        content: "🚛 METICULOUS TRUCK COUNTER: Extract EVERY SINGLE available truck from emails. Count each truck location separately. Be extremely thorough - missing trucks causes business impact. CRITICAL PARSING RULES: 1) ROUTE ARROWS: 'NASHVILLE → MEMPHIS, TN' = extract ORIGIN (Nashville, TN). 2) QUANTITY MULTIPLIERS: 'City, State – X [NUMBER]' = create [NUMBER] separate trucks (e.g., 'Memphis, TN – X 5' = 5 trucks, 'Kansas City, MO – X 100' = 100 trucks). 3) STATUS EXCLUSIONS: Skip 'Covered', 'Not Available', 'Assigned', 'Booked'. 4) OUTBOUND FORMAT: 'La Vergne, TN Outbound' = extract 'La Vergne, TN'. 5) EMAIL ADDRESSES: Use as primary customer identifier. 6) FORWARDED EMAILS: Extract original sender from body. 7) TABLE PROCESSING: Process ALL rows systematically. 8) DATE FORMATS: Handle 'MM/DD', 'YYYY-MM-DD', '9/08 AM' (day/hour). 9) MULTIPLE ENTRIES: Each location mention = separate truck. COUNT EVERY SINGLE TRUCK METICULOUSLY. Return ONLY valid JSON."
           },
         {
           role: "user",
