@@ -1,5 +1,7 @@
 const WebSocket = require('ws')
 const mysql = require('mysql2/promise')
+const https = require('https')
+const fs = require('fs')
 
 class TruckWebSocketServer {
   constructor() {
@@ -29,8 +31,32 @@ class TruckWebSocketServer {
       console.log('⏳ Waiting for database connection...')
       await this.waitForDatabase()
       
-      this.wss = new WebSocket.Server({ port })
-      console.log(`🚛 Truck WebSocket server started on port ${port}`)
+      // Try to create HTTPS server for WSS support
+      let server = null
+      try {
+        const options = {
+          key: fs.readFileSync('/etc/letsencrypt/live/ai.conardlogistics.com/privkey.pem'),
+          cert: fs.readFileSync('/etc/letsencrypt/live/ai.conardlogistics.com/fullchain.pem')
+        }
+        server = https.createServer(options)
+        console.log('🔒 Using HTTPS server for WSS support')
+      } catch (sslError) {
+        console.log('⚠️ SSL certificates not found, using HTTP server only')
+        console.log('   WSS connections will not work, only WS connections')
+      }
+      
+      this.wss = new WebSocket.Server({ 
+        port: port,
+        server: server  // Use HTTPS server if available, otherwise use port directly
+      })
+      
+      if (server) {
+        server.listen(port, () => {
+          console.log(`🚛 Truck WebSocket server started with WSS support on port ${port}`)
+        })
+      } else {
+        console.log(`🚛 Truck WebSocket server started on port ${port} (HTTP only)`)
+      }
 
       this.wss.on('connection', (ws) => {
         console.log('🚛 New truck client connected')
@@ -38,6 +64,25 @@ class TruckWebSocketServer {
 
         // Send current truck count on connection
         this.sendCurrentTruckCount(ws)
+
+        // Handle incoming messages
+        ws.on('message', (data) => {
+          try {
+            const message = JSON.parse(data.toString())
+            console.log('📨 Received truck WebSocket message:', message.type)
+            
+            switch (message.type) {
+              case 'TRUCK_DELETED':
+                console.log('🗑️ Processing truck deletion notification:', message.data.truckId)
+                this.notifyTruckDeleted(message.data.truckId)
+                break
+              default:
+                console.log('🚛 Unknown message type:', message.type)
+            }
+          } catch (error) {
+            console.error('❌ Error parsing truck WebSocket message:', error)
+          }
+        })
 
         ws.on('close', () => {
           console.log('🚛 Truck client disconnected')

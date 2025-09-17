@@ -12,8 +12,17 @@ export class TruckWebSocketClient {
 
   private connect() {
     try {
-      // Always use localhost for now since we're in development
-      const wsUrl = 'ws://localhost:8081'
+      // Use the server's IP address for remote connections, localhost for local development
+      const isLocalhost = typeof window !== 'undefined' && 
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      
+      // Use WSS for HTTPS pages, WS for HTTP pages
+      const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
+      const protocol = isHttps ? 'wss' : 'ws'
+      
+      const wsUrl = isLocalhost 
+        ? `${protocol}://localhost:8081`
+        : `${protocol}://ai.conardlogistics.com/truck-ws`
       
       console.log('🚛 Connecting to truck WebSocket:', wsUrl)
       
