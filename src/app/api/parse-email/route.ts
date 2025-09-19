@@ -38,6 +38,14 @@ async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
   try {
     console.log(`💾 STORING: ${parsedData.trucks?.length || 0} trucks from ${parsedData.customer}`)
     
+    // LATEST EMAIL ONLY LOGIC: Delete all previous data for this customer
+    // This function is only called for newer emails, so we can safely delete old data
+    console.log(`🗑️ DELETING: All previous trucks for customer ${parsedData.customerEmail}`)
+    await awsDatabaseQueries.deleteAllTrucksForCustomer(parsedData.customerEmail)
+    
+    console.log(`🗑️ DELETING: All previous emails for customer ${parsedData.customerEmail}`)
+    await awsDatabaseQueries.deleteAllEmailsForCustomer(parsedData.customerEmail)
+    
     // First, save the email record
     const emailRecord = {
       emailId: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Generate unique ID
@@ -64,7 +72,7 @@ async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
     // Save or update customer
     await awsDatabaseQueries.saveCustomer(customerRecord)
     
-    // Save each truck availability record
+    // Save each truck availability record (these are the NEW trucks)
     if (parsedData.trucks && Array.isArray(parsedData.trucks)) {
       for (const truck of parsedData.trucks) {
         const truckRecord = {
@@ -83,7 +91,7 @@ async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
       }
     }
     
-    console.log(`✅ STORED: ${parsedData.trucks?.length || 0} trucks successfully`)
+    console.log(`✅ REPLACED: ${parsedData.trucks?.length || 0} trucks successfully (old data deleted)`)
   } catch (error) {
     console.error('❌ Error storing truck data to database:', error)
     // Don't throw error - continue with email parsing even if database fails
@@ -119,6 +127,10 @@ export async function POST(request: NextRequest) {
     if (aiCache.has(cacheKey)) {
       return NextResponse.json(aiCache.get(cacheKey))
     }
+
+    // LATEST EMAIL ONLY LOGIC: Always process the email - replacement logic will handle old data
+    const customerEmail = from.address
+    console.log(`📧 PROCESSING: New email from ${customerEmail} - will replace any existing data`)
 
      // Strip HTML tags and decode HTML entities
      const stripHtml = (html: string) => {
@@ -182,6 +194,8 @@ Instructions:
          11. CRITICAL: Each unique truck should appear only once in the results
          12. CRITICAL: If multiple identical lines appear (like "Virginia Beach, VA" repeated 3 times), each line represents a separate truck - extract each one
          13. CRITICAL: Multiple identical locations in the email = Multiple trucks at that location
+         14. CRITICAL: QUANTITY MULTIPLIERS: "Kansas City, MO – X 4" = create 4 separate truck entries for Kansas City, MO
+         15. CRITICAL: For quantity multipliers, create the exact number of truck entries specified by the multiplier
 
 Example input formats:
 
@@ -242,7 +256,16 @@ ROUTE ARROW FORMATS (extract ORIGIN city as truck location):
 "La Vergne, TN to High Point, NC" -> extract: city="La Vergne", state="TN", additionalInfo="to High Point, NC"
 
 QUANTITY MULTIPLIER FORMATS (create multiple truck entries):
+"Kansas City, MO – X 4" -> create 4 separate trucks all at Kansas City, MO
+"Kansas City, MO - X 4" -> create 4 separate trucks all at Kansas City, MO
+"Kansas City, MO X 4" -> create 4 separate trucks all at Kansas City, MO
+"Kansas City, MO–X4" -> create 4 separate trucks all at Kansas City, MO
+"Kansas City, MO-X4" -> create 4 separate trucks all at Kansas City, MO
+"Kansas City, MOX4" -> create 4 separate trucks all at Kansas City, MO
+"Memphis, TN – X 3" -> create 3 separate trucks all at Memphis, TN
+"St Joseph, MO X 2" -> create 2 separate trucks at St Joseph, MO
 PATTERN: "City, State [dash/space] X [NUMBER]" -> extract: [NUMBER] separate trucks at that location
+CRITICAL: Look for ANY format with a number after the location - this indicates quantity multiplier
 
 OUTBOUND RADIUS FORMATS:
 "La Vergne, TN Outbound (250 mile radius)" -> extract: city="La Vergne", state="TN"
@@ -270,6 +293,20 @@ Return ONLY valid JSON:
   ]
 }
 
+QUANTITY MULTIPLIER EXAMPLE:
+Input: "Kansas City, MO – X 4"
+Output: 4 separate truck entries:
+{
+  "customer": "Company Name",
+  "customerEmail": "email@domain.com",
+  "trucks": [
+    {"date": "9/17", "city": "Kansas City", "state": "MO", "additionalInfo": ""},
+    {"date": "9/17", "city": "Kansas City", "state": "MO", "additionalInfo": ""},
+    {"date": "9/17", "city": "Kansas City", "state": "MO", "additionalInfo": ""},
+    {"date": "9/17", "city": "Kansas City", "state": "MO", "additionalInfo": ""}
+  ]
+}
+
 Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this exact format: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": [{"date": "MM/DD", "city": "City Name", "state": "ST", "additionalInfo": "optional details"}]}. IMPORTANT: Use MM/DD format for dates (e.g., "8/12" not "2024-08-12") to match the original email format. CRITICAL: For special DATE/TIME format like "9/08 AM" or "9/09 AM", interpret as DAY/TIME format where first number is day, second is hour, assume current month. "9/08 AM" = September 9th, 8:00 AM -> convert to "09/09". "9/09 AM" = September 9th, 9:00 AM -> convert to "09/09". "10/05 AM" = September 10th, 5:00 AM -> convert to "09/10". If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
 
     const openai = getOpenAIClient()
@@ -278,7 +315,7 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
       messages: [
                                    {
             role: "system",
-                        content: "🚛 METICULOUS TRUCK COUNTER: Extract EVERY SINGLE available truck from emails. Count each truck location separately. Be extremely thorough - missing trucks causes business impact. CRITICAL PARSING RULES: 1) ROUTE ARROWS: 'NASHVILLE → MEMPHIS, TN' = extract ORIGIN (Nashville, TN). 2) QUANTITY MULTIPLIERS: 'City, State – X [NUMBER]' = create [NUMBER] separate trucks (e.g., 'Memphis, TN – X 5' = 5 trucks, 'Kansas City, MO – X 100' = 100 trucks). 3) STATUS EXCLUSIONS: Skip 'Covered', 'Not Available', 'Assigned', 'Booked'. 4) OUTBOUND FORMAT: 'La Vergne, TN Outbound' = extract 'La Vergne, TN'. 5) EMAIL ADDRESSES: Use as primary customer identifier. 6) FORWARDED EMAILS: Extract original sender from body. 7) TABLE PROCESSING: Process ALL rows systematically. 8) DATE FORMATS: Handle 'MM/DD', 'YYYY-MM-DD', '9/08 AM' (day/hour). 9) MULTIPLE ENTRIES: Each location mention = separate truck. COUNT EVERY SINGLE TRUCK METICULOUSLY. Return ONLY valid JSON."
+                        content: "🚛 METICULOUS TRUCK COUNTER: Extract EVERY SINGLE available truck from emails. Count each truck location separately. Be extremely thorough - missing trucks causes business impact. CRITICAL PARSING RULES: 1) ROUTE ARROWS: 'NASHVILLE → MEMPHIS, TN' = extract ORIGIN (Nashville, TN). 2) QUANTITY MULTIPLIERS: ANY format with number after location = create that many separate trucks (e.g., 'Kansas City, MO – X 4' = 4 trucks, 'Memphis, TN X 3' = 3 trucks, 'St Joseph, MOX2' = 2 trucks). 3) STATUS EXCLUSIONS: Skip 'Covered', 'Not Available', 'Assigned', 'Booked'. 4) OUTBOUND FORMAT: 'La Vergne, TN Outbound' = extract 'La Vergne, TN'. 5) EMAIL ADDRESSES: Use as primary customer identifier. 6) FORWARDED EMAILS: Extract original sender from body. 7) TABLE PROCESSING: Process ALL rows systematically. 8) DATE FORMATS: Handle 'MM/DD', 'YYYY-MM-DD', '9/08 AM' (day/hour). 9) MULTIPLE ENTRIES: Each location mention = separate truck. 10) QUANTITY DETECTION: Look for numbers after city/state - this means create that many trucks. COUNT EVERY SINGLE TRUCK METICULOUSLY. Return ONLY valid JSON."
           },
         {
           role: "user",

@@ -230,5 +230,70 @@ export const awsDatabaseQueries = {
     } finally {
       await connection.end()
     }
+  },
+
+  // Delete all trucks for a specific customer (soft delete)
+  async deleteAllTrucksForCustomer(customerEmail: string) {
+    const connection = await getAwsConnection()
+    
+    try {
+      const [result] = await connection.execute(`
+        DELETE FROM truck_availability 
+        WHERE customer_email = ?
+      `, [customerEmail])
+      return result
+    } finally {
+      await connection.end()
+    }
+  },
+
+  // Delete all emails for a specific customer (optional)
+  async deleteAllEmailsForCustomer(customerEmail: string) {
+    const connection = await getAwsConnection()
+    
+    try {
+      const [result] = await connection.execute(`
+        DELETE FROM emails 
+        WHERE from_email = ?
+      `, [customerEmail])
+      return result
+    } finally {
+      await connection.end()
+    }
+  },
+
+  // Check if customer exists and get their latest email date
+  async getCustomerLatestEmail(customerEmail: string) {
+    const connection = await getAwsConnection()
+    
+    try {
+      const [rows] = await connection.execute(`
+        SELECT MAX(received_date_time) as latest_email_date
+        FROM emails 
+        WHERE from_email = ?
+      `, [customerEmail])
+      
+      return rows as any[]
+    } finally {
+      await connection.end()
+    }
+  },
+
+  // Check if customer exists
+  async customerExists(customerEmail: string) {
+    const connection = await getAwsConnection()
+    
+    try {
+      const [rows] = await connection.execute(`
+        SELECT COUNT(*) as count
+        FROM customers 
+        WHERE customer_email = ?
+      `, [customerEmail])
+      
+      const result = rows as any[]
+      return result[0]?.count > 0
+    } finally {
+      await connection.end()
+    }
   }
 }

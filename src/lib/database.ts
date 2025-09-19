@@ -295,7 +295,10 @@ export const databaseQueries = {
         LEFT JOIN trkstops stop1 ON stop1.ref_number = avalload.ref_number AND stop1.sequence_num = 1
         LEFT JOIN trkstops stoplast ON stoplast.ref_number = avalload.ref_number 
           AND stoplast.recnum = (SELECT MAX(recnum) FROM trkstops WHERE trkstops.ref_number = avalload.ref_number)
-      WHERE load_status = 'A'
+      WHERE load_status = 'A' 
+        AND avalload.ACTUAL_NAME IS NOT NULL 
+        AND avalload.ACTUAL_NAME != ''
+        AND avalload.ref_number IS NOT NULL
       ORDER BY depart_date, stop1.pu_drop_date1, stop1.pu_drop_time1
     `
     
@@ -324,7 +327,11 @@ export const databaseQueries = {
         LEFT JOIN trkstops stop1 ON stop1.ref_number = avalload.ref_number AND stop1.sequence_num = 1
         LEFT JOIN trkstops stoplast ON stoplast.ref_number = avalload.ref_number 
           AND stoplast.recnum = (SELECT MAX(recnum) FROM trkstops WHERE trkstops.ref_number = avalload.ref_number)
-      WHERE load_status = 'A' AND avalload.actual_name LIKE @companyName
+      WHERE load_status = 'A' 
+        AND avalload.ACTUAL_NAME LIKE @companyName
+        AND avalload.ACTUAL_NAME IS NOT NULL 
+        AND avalload.ACTUAL_NAME != ''
+        AND avalload.ref_number IS NOT NULL
       ORDER BY depart_date, stop1.pu_drop_date1, stop1.pu_drop_time1
     `
     

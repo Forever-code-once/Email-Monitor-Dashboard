@@ -160,8 +160,17 @@ export function DateNavigation({
     setCalendarOpen(false)
   }
 
+  // Helper function to parse dates in local timezone
+  const parseDateForTimezone = (dateStr: string): Date => {
+    if (!dateStr) return new Date()
+    
+    // Parse YYYY-MM-DD format as local time to avoid timezone issues
+    const [year, month, day] = dateStr.split('-').map(Number)
+    return new Date(year, month - 1, day) // month is 0-indexed
+  }
+
   const handleDateApply = () => {
-    const newDate = new Date(startDate)
+    const newDate = parseDateForTimezone(startDate)
     if (!isNaN(newDate.getTime())) {
       setActiveDateRange(null) // Clear any active date range
       onDateSelect(newDate)
@@ -170,8 +179,8 @@ export function DateNavigation({
   }
 
   const handleDateRangeApply = () => {
-    const start = new Date(startDate)
-    const end = new Date(endDate)
+    const start = parseDateForTimezone(startDate)
+    const end = parseDateForTimezone(endDate)
     
     if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
       // Store the active date range

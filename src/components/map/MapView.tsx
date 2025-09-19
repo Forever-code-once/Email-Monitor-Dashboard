@@ -58,6 +58,33 @@ interface MapViewProps {
 }
 
 export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, onDateChange, onLoadsCountChange, onTruckDeleted }: MapViewProps) {
+  
+  // Helper function to parse dates in local timezone
+  const parseDateForTimezone = (dateStr: string): Date => {
+    if (!dateStr) return new Date()
+    
+    // Handle different date formats
+    if (dateStr.includes('T')) {
+      // ISO format - extract date components directly to avoid timezone conversion
+      const datePart = dateStr.split('T')[0] // Get "2025-09-23" from "2025-09-23T00:00:00.000Z"
+      const [year, month, day] = datePart.split('-').map(Number)
+      return new Date(year, month - 1, day) // month is 0-indexed
+    } else if (dateStr.includes('-')) {
+      // YYYY-MM-DD format - parse as local time
+      const [year, month, day] = dateStr.split('-').map(Number)
+      return new Date(year, month - 1, day)
+    } else {
+      // Fallback
+      return new Date(dateStr)
+    }
+  }
+
+  // Helper function to compare dates (ignoring time)
+  const compareDatesOnly = (date1: Date, date2: Date): boolean => {
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate()
+  }
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null)
   
@@ -179,43 +206,39 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
             return false
           }
           
-          // Check if this is the default SQL Server date (1753-01-01) - treat as current date
+          // Check if this is the default SQL Server date (1753-01-01) - treat as next business day
           const isDefaultDate = dateField === '1753-01-01T00:00:00.000Z' || dateField === '1753-01-01'
           
-          const loadDate = new Date(dateField)
-          if (isNaN(loadDate.getTime())) {
-            return false
-          }
-          
-          if (range) {
-            // For default date loads, only include them if the range includes the next business day
-            if (isDefaultDate) {
-              const nextBusinessDay = getNextBusinessDay()
-              const nextBusinessDayOnly = new Date(nextBusinessDay.getFullYear(), nextBusinessDay.getMonth(), nextBusinessDay.getDate())
+          if (isDefaultDate) {
+            // For default date loads, use next business day
+            const nextBusinessDay = getNextBusinessDay()
+            const nextBusinessDayOnly = new Date(nextBusinessDay.getFullYear(), nextBusinessDay.getMonth(), nextBusinessDay.getDate())
+            
+            if (range) {
+              // Check if next business day falls within the range
               const rangeIncludesNextBusinessDay = nextBusinessDayOnly >= range.start && nextBusinessDayOnly <= range.end
-              
               return rangeIncludesNextBusinessDay
+            } else {
+              // Check if selected date matches next business day
+              const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+              return compareDatesOnly(selectedDateOnly, nextBusinessDayOnly)
             }
-            
-            // For regular dates, check if they fall within the range
-            const matches = loadDate >= range.start && loadDate <= range.end
-            return matches
           } else {
-            // Check if load date matches selected date (ignore time)
-            const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-            const loadDateOnly = new Date(loadDate.getFullYear(), loadDate.getMonth(), loadDate.getDate())
-            
-            // For default date loads, only show them if selected date is the next business day
-            if (isDefaultDate) {
-              const nextBusinessDay = getNextBusinessDay()
-              const nextBusinessDayOnly = new Date(nextBusinessDay.getFullYear(), nextBusinessDay.getMonth(), nextBusinessDay.getDate())
-              const isNextBusinessDay = selectedDateOnly.getTime() === nextBusinessDayOnly.getTime()
-              return isNextBusinessDay
+            // For regular dates, parse and compare normally
+            const loadDate = parseDateForTimezone(dateField)
+            if (isNaN(loadDate.getTime())) {
+              return false
             }
             
-            // For regular dates, check if they match the selected date
-            const dateMatches = loadDateOnly.getTime() === selectedDateOnly.getTime()
-            return dateMatches
+            if (range) {
+              // For regular dates, check if they fall within the range
+              const matches = loadDate >= range.start && loadDate <= range.end
+              return matches
+            } else {
+              // Check if load date matches selected date (ignore time)
+              const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+              return compareDatesOnly(loadDate, selectedDateOnly)
+            }
           }
         })
         
