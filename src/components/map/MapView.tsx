@@ -88,6 +88,27 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null)
   
+  // Auto-refresh state
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [lastMidnightCheck, setLastMidnightCheck] = useState<Date>(new Date())
+  const [dateOffset, setDateOffset] = useState<number>(0) // Track manual offset from today
+
+  // Wrapper function to update selectedDate and calculate offset
+  const updateSelectedDate = useCallback((newDate: Date) => {
+    setSelectedDate(newDate)
+    
+    // Calculate offset from today
+    const today = new Date()
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const newDateOnly = new Date(newDate.getFullYear(), newDate.getMonth(), newDate.getDate())
+    
+    const timeDiff = newDateOnly.getTime() - todayOnly.getTime()
+    const daysDiff = Math.round(timeDiff / (1000 * 60 * 60 * 24))
+    
+    setDateOffset(daysDiff)
+    console.log(`📅 Date changed to ${newDate.toLocaleDateString()}, offset: ${daysDiff} days from today`)
+  }, [])
+  
   // Distance measurement state
   const [selectedLoad, setSelectedLoad] = useState<LoadPin | null>(null)
   const [selectedTruck, setSelectedTruck] = useState<MapPin | null>(null)
@@ -117,6 +138,44 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
   useEffect(() => {
     // Customer cards logging removed
   }, [customerCards])
+
+  // Auto-refresh logic: Check for midnight and advance date while preserving offset
+  useEffect(() => {
+    if (!autoRefresh) return
+
+    const checkMidnight = () => {
+      const now = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const lastCheck = new Date(lastMidnightCheck.getFullYear(), lastMidnightCheck.getMonth(), lastMidnightCheck.getDate())
+      
+      // Check if we've crossed midnight since last check
+      if (today.getTime() > lastCheck.getTime()) {
+        console.log('🕛 Midnight detected! Advancing dashboard date...')
+        
+        // Calculate new date with preserved offset
+        const newDate = new Date(today)
+        newDate.setDate(today.getDate() + dateOffset)
+        
+        console.log(`📅 Date advanced: ${selectedDate.toLocaleDateString()} → ${newDate.toLocaleDateString()} (offset: +${dateOffset} days)`)
+        
+        updateSelectedDate(newDate)
+        setLastMidnightCheck(now)
+        
+        // Trigger data refresh
+        if (onDateChange) {
+          onDateChange(newDate)
+        }
+      }
+    }
+
+    // Check immediately
+    checkMidnight()
+    
+    // Set up interval to check every minute
+    const interval = setInterval(checkMidnight, 60000) // Check every minute
+    
+    return () => clearInterval(interval)
+  }, [autoRefresh, lastMidnightCheck, dateOffset, selectedDate, onDateChange])
 
   // Check if cache is valid
   const isCacheValid = useCallback(() => {
@@ -523,16 +582,13 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     }
   }, [customerCards])
 
-  // Initialize with first available date
+  // Initialize with today's date (always start with current day)
   useEffect(() => {
-    if (!initialized && customerCards.length > 0) {
-      const dates = availableDates()
-      if (dates.length > 0 && !isNaN(dates[0].getTime())) {
-        setSelectedDate(dates[0])
-        setInitialized(true)
-      }
+    if (!initialized) {
+      updateSelectedDate(new Date()) // Always start with today
+      setInitialized(true)
     }
-  }, [customerCards, availableDates, initialized])
+  }, [initialized, updateSelectedDate])
 
   // Update pins when date or date range changes
   useEffect(() => {
@@ -559,7 +615,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     if (!isNaN(selectedDate.getTime())) {
       const prevDate = new Date(selectedDate)
       prevDate.setDate(prevDate.getDate() - 1)
-      setSelectedDate(prevDate)
+      updateSelectedDate(prevDate)
     }
     setDateRange(null) // Clear date range when using single date navigation
   }
@@ -568,14 +624,14 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     if (!isNaN(selectedDate.getTime())) {
       const nextDate = new Date(selectedDate)
       nextDate.setDate(nextDate.getDate() + 1)
-      setSelectedDate(nextDate)
+      updateSelectedDate(nextDate)
     }
     setDateRange(null) // Clear date range when using single date navigation
   }
 
   const handleDateSelect = (date: Date, range?: { start: Date; end: Date }) => {
     if (!isNaN(date.getTime())) {
-      setSelectedDate(date)
+      updateSelectedDate(date)
     }
     if (range && !isNaN(range.start.getTime()) && !isNaN(range.end.getTime())) {
       setDateRange(range)
@@ -677,7 +733,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
       
               <TruckMap
           selectedDate={selectedDate}
-          onDateChange={setSelectedDate}
+          onDateChange={updateSelectedDate}
           onPinClick={handlePinClick}
           pins={pins}
           loadPins={loadPins}
