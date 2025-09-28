@@ -4,7 +4,7 @@ import { useIsAuthenticated, useMsal } from '@azure/msal-react'
 import { useEffect, useState } from 'react'
 import { LoginScreen } from '@/components/auth/LoginScreen'
 import { Dashboard } from '@/components/dashboard/Dashboard'
-import { Container } from '@mui/material'
+import { AppLayout } from '@/components/layout/AppLayout'
 
 export default function Home() {
   const isAuthenticated = useIsAuthenticated()
@@ -34,8 +34,20 @@ export default function Home() {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
+    <AppLayout
+      lastRefresh={new Date()}
+      wsConnected={false}
+      onLogout={() => {
+        instance.logoutRedirect({
+          postLogoutRedirectUri: window.location.origin
+        })
+      }}
+      onSendToken={() => {
+        // Handle send token functionality
+        console.log('Send token clicked')
+      }}
+    >
       <Dashboard />
-    </Container>
+    </AppLayout>
   )
 } 

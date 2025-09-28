@@ -310,7 +310,7 @@ export function TruckMap({
   }
 
   return (
-    <Box sx={{ position: 'relative', height: '70vh', width: '100%' }}>
+    <Box sx={{ position: 'relative', height: '75vh', width: '100%' }}>
       {loading && (
         <Box
           sx={{
