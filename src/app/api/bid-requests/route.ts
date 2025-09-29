@@ -67,7 +67,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { customerName, pickupCity, destinationCity, timerInput, radiusMiles = 50 } = body
+    const { customerName, pickupCity, destinationCity, timerInput, radiusMiles = 50, selectedDate } = body
     
     // Parse timer input
     const timerMinutes = parseTimerInput(timerInput)
@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
     const connection = await pool.getConnection()
     
     try {
-      // Check for matching trucks
-      const hasMatchingTruck = await checkTruckAvailability(pickupCity, radiusMiles, connection)
+      // Check for matching trucks on the selected date
+      const hasMatchingTruck = await checkTruckAvailability(pickupCity, radiusMiles, selectedDate, connection)
       
       // Calculate expiration time
       const createdAt = new Date()
@@ -161,32 +161,90 @@ function parseTimerInput(input: string): number {
 }
 
 // Helper function to check truck availability
-async function checkTruckAvailability(pickupCity: string, radiusMiles: number, connection: any): Promise<boolean> {
+async function checkTruckAvailability(pickupCity: string, radiusMiles: number, selectedDate: string, connection: any): Promise<boolean> {
   try {
-    // First, try to find trucks in the exact city
+    // Extract city name from "City, State" format (e.g., "Nashville, TN" -> "Nashville")
+    const cityName = pickupCity.split(',')[0].trim()
+    
+    // Convert selectedDate to MM/DD format if needed
+    let targetDate = selectedDate
+    if (selectedDate && selectedDate.includes('-')) {
+      // Convert YYYY-MM-DD to MM/DD
+      const [year, month, day] = selectedDate.split('-')
+      targetDate = `${parseInt(month)}/${parseInt(day)}`
+    }
+    
+    console.log(`🔍 Checking truck availability for ${pickupCity} on date: ${targetDate}`)
+    
+    // First, try to find trucks in the exact city on the selected date
     const [exactMatches] = await connection.execute(`
       SELECT COUNT(*) as count
-      FROM trucks 
-      WHERE city = ? AND is_deleted = 0
-    `, [pickupCity])
+      FROM truck_availability 
+      WHERE (city = ? OR city = ?) AND date = ? AND is_deleted = 0
+    `, [pickupCity, cityName, targetDate])
     
     const exactCount = (exactMatches as any[])[0].count
+    console.log(`📊 Exact matches found: ${exactCount}`)
+    
     if (exactCount > 0) {
       return true
     }
     
-    // If no exact matches and radius > 0, check nearby cities
+    // If no exact matches and radius > 0, check nearby cities on the selected date
     if (radiusMiles > 0) {
-      // For now, we'll do a simple city name matching
-      // In a real implementation, you'd use geocoding and distance calculations
-      const [nearbyMatches] = await connection.execute(`
-        SELECT COUNT(*) as count
-        FROM trucks 
-        WHERE city LIKE ? AND is_deleted = 0
-      `, [`%${pickupCity.split(',')[0]}%`]) // Match city name part
+      // Extract state from pickup city (e.g., "Nashville, TN" -> "TN")
+      const stateMatch = pickupCity.match(/,\s*([A-Z]{2})$/i)
+      const state = stateMatch ? stateMatch[1].toUpperCase() : null
       
-      const nearbyCount = (nearbyMatches as any[])[0].count
-      return nearbyCount > 0
+      if (state) {
+        // For very large radii (>1000 miles), check all states
+        if (radiusMiles > 1000) {
+          const [nearbyMatches] = await connection.execute(`
+            SELECT COUNT(*) as count
+            FROM truck_availability 
+            WHERE date = ? AND is_deleted = 0
+          `, [targetDate])
+          
+          const nearbyCount = (nearbyMatches as any[])[0].count
+          console.log(`📊 Large radius (${radiusMiles}mi) - matches found across all states: ${nearbyCount}`)
+          return nearbyCount > 0
+        } else {
+          // Check for trucks in the same state for smaller radii
+          const [nearbyMatches] = await connection.execute(`
+            SELECT COUNT(*) as count
+            FROM truck_availability 
+            WHERE state = ? AND date = ? AND is_deleted = 0
+          `, [state, targetDate])
+          
+          const nearbyCount = (nearbyMatches as any[])[0].count
+          console.log(`📊 Nearby matches found in state ${state}: ${nearbyCount}`)
+          return nearbyCount > 0
+        }
+      } else {
+        // No state specified - for large radii, check all states
+        if (radiusMiles > 1000) {
+          const [nearbyMatches] = await connection.execute(`
+            SELECT COUNT(*) as count
+            FROM truck_availability 
+            WHERE date = ? AND is_deleted = 0
+          `, [targetDate])
+          
+          const nearbyCount = (nearbyMatches as any[])[0].count
+          console.log(`📊 Large radius (${radiusMiles}mi) - no state specified - matches found across all states: ${nearbyCount}`)
+          return nearbyCount > 0
+        } else {
+          // Fallback to simple city name matching if no state found
+          const [nearbyMatches] = await connection.execute(`
+            SELECT COUNT(*) as count
+            FROM truck_availability 
+            WHERE city LIKE ? AND date = ? AND is_deleted = 0
+          `, [`%${cityName}%`, targetDate])
+          
+          const nearbyCount = (nearbyMatches as any[])[0].count
+          console.log(`📊 Nearby matches found by city name: ${nearbyCount}`)
+          return nearbyCount > 0
+        }
+      }
     }
     
     return false

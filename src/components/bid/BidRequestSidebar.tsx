@@ -16,9 +16,10 @@ interface BidRequestSidebarProps {
   truckPins?: any[] // Optional truck pins for matching
   onRefresh?: () => void
   className?: string
+  selectedDate?: Date
 }
 
-export function BidRequestSidebar({ truckPins = [], onRefresh, className }: BidRequestSidebarProps) {
+export function BidRequestSidebar({ truckPins = [], onRefresh, className, selectedDate = new Date() }: BidRequestSidebarProps) {
   const [bidRequests, setBidRequests] = useState<BidRequest[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
@@ -48,12 +49,18 @@ export function BidRequestSidebar({ truckPins = [], onRefresh, className }: BidR
     setError('')
     
     try {
+      // Convert selectedDate to string format for API
+      const selectedDateStr = selectedDate.toISOString().split('T')[0] // YYYY-MM-DD format
+      
       const response = await fetch('/api/bid-requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          selectedDate: selectedDateStr
+        }),
       })
       
       const data = await response.json()

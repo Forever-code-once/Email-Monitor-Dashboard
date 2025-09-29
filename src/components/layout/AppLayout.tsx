@@ -13,6 +13,7 @@ interface AppLayoutProps {
   wsConnected?: boolean
   onLogout?: () => void
   onSendToken?: () => void
+  selectedDate?: Date
 }
 
 export function AppLayout({ 
@@ -22,7 +23,8 @@ export function AppLayout({
   lastRefresh = new Date(), 
   wsConnected = false, 
   onLogout = () => {}, 
-  onSendToken = () => {} 
+  onSendToken = () => {},
+  selectedDate = new Date()
 }: AppLayoutProps) {
   return (
     <Box sx={{ 
@@ -52,6 +54,7 @@ export function AppLayout({
         <BidRequestSidebar 
           truckPins={truckPins}
           onRefresh={onRefresh}
+          selectedDate={selectedDate}
         />
         
         {/* Main Content Area */}
