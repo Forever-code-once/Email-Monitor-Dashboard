@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
+import { normalizeCityName, getCityVariations, citiesMatch } from '@/lib/cityNormalization'
 
 // Database configuration
 const dbConfig = {
@@ -163,8 +164,10 @@ function parseTimerInput(input: string): number {
 // Helper function to check truck availability
 async function checkTruckAvailability(pickupCity: string, radiusMiles: number, selectedDate: string, connection: any): Promise<boolean> {
   try {
-    // Extract city name from "City, State" format (e.g., "Nashville, TN" -> "Nashville")
-    const cityName = pickupCity.split(',')[0].trim()
+    // Extract city name and state from pickup city
+    const cityParts = pickupCity.split(',')
+    const cityName = cityParts[0].trim()
+    const stateName = cityParts[1] ? cityParts[1].trim().toUpperCase() : null
     
     // Convert selectedDate to MM/DD format if needed
     let targetDate = selectedDate
@@ -176,73 +179,61 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
     
     console.log(`🔍 Checking truck availability for ${pickupCity} on date: ${targetDate}`)
     
-    // First, try to find trucks in the exact city on the selected date
-    const [exactMatches] = await connection.execute(`
-      SELECT COUNT(*) as count
-      FROM truck_availability 
-      WHERE (city = ? OR city = ?) AND date = ? AND is_deleted = 0
-    `, [pickupCity, cityName, targetDate])
+    // Get all trucks for the selected date to check for city variations
+    const [allTrucks] = await connection.execute(`
+      SELECT city, state FROM truck_availability 
+      WHERE date = ? AND is_deleted = 0
+    `, [targetDate])
     
-    const exactCount = (exactMatches as any[])[0].count
-    console.log(`📊 Exact matches found: ${exactCount}`)
+    const trucks = allTrucks as Array<{city: string, state: string}>
+    console.log(`📊 Found ${trucks.length} trucks on ${targetDate}`)
     
-    if (exactCount > 0) {
+    // Check for exact city matches first
+    let exactMatches = 0
+    for (const truck of trucks) {
+      if (citiesMatch(cityName, truck.city)) {
+        // If state is specified, check state match
+        if (stateName && truck.state.toUpperCase() === stateName) {
+          exactMatches++
+          console.log(`✅ Exact match found: ${truck.city}, ${truck.state}`)
+        } else if (!stateName) {
+          // No state specified, any state match is good
+          exactMatches++
+          console.log(`✅ City match found: ${truck.city}, ${truck.state}`)
+        }
+      }
+    }
+    
+    console.log(`📊 Exact matches found: ${exactMatches}`)
+    
+    if (exactMatches > 0) {
       return true
     }
     
     // If no exact matches and radius > 0, check nearby cities on the selected date
     if (radiusMiles > 0) {
-      // Extract state from pickup city (e.g., "Nashville, TN" -> "TN")
-      const stateMatch = pickupCity.match(/,\s*([A-Z]{2})$/i)
-      const state = stateMatch ? stateMatch[1].toUpperCase() : null
-      
-      if (state) {
-        // For very large radii (>1000 miles), check all states
+      if (stateName) {
+        // State specified - check within state or across all states based on radius
         if (radiusMiles > 1000) {
-          const [nearbyMatches] = await connection.execute(`
-            SELECT COUNT(*) as count
-            FROM truck_availability 
-            WHERE date = ? AND is_deleted = 0
-          `, [targetDate])
-          
-          const nearbyCount = (nearbyMatches as any[])[0].count
-          console.log(`📊 Large radius (${radiusMiles}mi) - matches found across all states: ${nearbyCount}`)
-          return nearbyCount > 0
+          // Large radius - check all states
+          console.log(`📊 Large radius (${radiusMiles}mi) - checking all states`)
+          return trucks.length > 0
         } else {
-          // Check for trucks in the same state for smaller radii
-          const [nearbyMatches] = await connection.execute(`
-            SELECT COUNT(*) as count
-            FROM truck_availability 
-            WHERE state = ? AND date = ? AND is_deleted = 0
-          `, [state, targetDate])
-          
-          const nearbyCount = (nearbyMatches as any[])[0].count
-          console.log(`📊 Nearby matches found in state ${state}: ${nearbyCount}`)
-          return nearbyCount > 0
+          // Small radius - check same state only
+          const stateMatches = trucks.filter(truck => truck.state.toUpperCase() === stateName)
+          console.log(`📊 Small radius (${radiusMiles}mi) - matches found in state ${stateName}: ${stateMatches.length}`)
+          return stateMatches.length > 0
         }
       } else {
         // No state specified - for large radii, check all states
         if (radiusMiles > 1000) {
-          const [nearbyMatches] = await connection.execute(`
-            SELECT COUNT(*) as count
-            FROM truck_availability 
-            WHERE date = ? AND is_deleted = 0
-          `, [targetDate])
-          
-          const nearbyCount = (nearbyMatches as any[])[0].count
-          console.log(`📊 Large radius (${radiusMiles}mi) - no state specified - matches found across all states: ${nearbyCount}`)
-          return nearbyCount > 0
+          console.log(`📊 Large radius (${radiusMiles}mi) - no state specified - checking all states`)
+          return trucks.length > 0
         } else {
-          // Fallback to simple city name matching if no state found
-          const [nearbyMatches] = await connection.execute(`
-            SELECT COUNT(*) as count
-            FROM truck_availability 
-            WHERE city LIKE ? AND date = ? AND is_deleted = 0
-          `, [`%${cityName}%`, targetDate])
-          
-          const nearbyCount = (nearbyMatches as any[])[0].count
-          console.log(`📊 Nearby matches found by city name: ${nearbyCount}`)
-          return nearbyCount > 0
+          // Small radius, no state - check for city name variations
+          const cityMatches = trucks.filter(truck => citiesMatch(cityName, truck.city))
+          console.log(`📊 Small radius (${radiusMiles}mi) - city variations found: ${cityMatches.length}`)
+          return cityMatches.length > 0
         }
       }
     }
