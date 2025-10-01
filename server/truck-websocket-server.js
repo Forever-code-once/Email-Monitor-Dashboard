@@ -14,13 +14,6 @@ class TruckWebSocketServer {
       database: process.env.AWS_RDS_DATABASE || 'email_monitor',
       port: parseInt(process.env.AWS_RDS_PORT || '3306')
     }
-    
-    console.log('🔧 Database config:', {
-      host: this.dbConfig.host,
-      user: this.dbConfig.user,
-      database: this.dbConfig.database,
-      port: this.dbConfig.port
-    })
     this.lastTruckCount = 0
     this.isMonitoring = false
   }
@@ -28,7 +21,6 @@ class TruckWebSocketServer {
   async start(port = 8081) {
     try {
       // Wait for database to be ready before starting WebSocket server
-      console.log('⏳ Waiting for database connection...')
       await this.waitForDatabase()
       
       // Try to create HTTPS server for WSS support
@@ -39,27 +31,16 @@ class TruckWebSocketServer {
           cert: fs.readFileSync('/etc/letsencrypt/live/ai.conardlogistics.com/fullchain.pem')
         }
         server = https.createServer(options)
-        console.log('🔒 Using HTTPS server for WSS support')
       } catch (sslError) {
-        console.log('⚠️ SSL certificates not found, using HTTP server only')
-        console.log('   WSS connections will not work, only WS connections')
+        console.error('❌ SSL certificates not found, using HTTP server only')
       }
       
       this.wss = new WebSocket.Server({ 
         port: port,
         server: server  // Use HTTPS server if available, otherwise use port directly
       })
-      
-      if (server) {
-        server.listen(port, () => {
-          console.log(`🚛 Truck WebSocket server started with WSS support on port ${port}`)
-        })
-      } else {
-        console.log(`🚛 Truck WebSocket server started on port ${port} (HTTP only)`)
-      }
 
       this.wss.on('connection', (ws) => {
-        console.log('🚛 New truck client connected')
         this.clients.add(ws)
 
         // Send current truck count on connection
@@ -69,11 +50,9 @@ class TruckWebSocketServer {
         ws.on('message', (data) => {
           try {
             const message = JSON.parse(data.toString())
-            console.log('📨 Received truck WebSocket message:', message.type)
             
             switch (message.type) {
               case 'TRUCK_DELETED':
-                console.log('🗑️ Processing truck deletion notification:', message.data.truckId)
                 this.notifyTruckDeleted(message.data.truckId)
                 break
               default:
@@ -85,7 +64,6 @@ class TruckWebSocketServer {
         })
 
         ws.on('close', () => {
-          console.log('🚛 Truck client disconnected')
           this.clients.delete(ws)
         })
 
@@ -106,19 +84,15 @@ class TruckWebSocketServer {
   async waitForDatabase(maxRetries = 10, retryDelay = 2000) {
     for (let i = 0; i < maxRetries; i++) {
       try {
-        console.log(`🔄 Attempting database connection (${i + 1}/${maxRetries})...`)
         const connection = await mysql.createConnection(this.dbConfig)
         
         // Test the connection with a simple query
         await connection.execute('SELECT 1')
         await connection.end()
         
-        console.log('✅ Database connection successful')
         return true
       } catch (error) {
-        console.log(`❌ Database connection failed (attempt ${i + 1}):`, error.message)
         if (i < maxRetries - 1) {
-          console.log(`⏳ Retrying in ${retryDelay}ms...`)
           await new Promise(resolve => setTimeout(resolve, retryDelay))
         }
       }
@@ -130,7 +104,6 @@ class TruckWebSocketServer {
     if (this.isMonitoring) return
     
     this.isMonitoring = true
-    console.log('🔍 Starting truck data monitoring...')
 
     // Check for changes every 2 seconds
     setInterval(async () => {
@@ -155,7 +128,6 @@ class TruckWebSocketServer {
       
       // Check if count changed
       if (currentCount !== this.lastTruckCount) {
-        console.log(`📊 Truck count changed: ${this.lastTruckCount} → ${currentCount}`)
         
         // Get all active trucks
         const [trucks] = await connection.execute(`
@@ -240,7 +212,6 @@ class TruckWebSocketServer {
 
   // Method to notify about truck deletion
   notifyTruckDeleted(truckId) {
-    console.log(`🗑️ Notifying truck deletion: ${truckId}`)
     this.broadcastToAll({
       type: 'TRUCK_DELETED',
       data: {
@@ -252,7 +223,6 @@ class TruckWebSocketServer {
 
   // Method to notify about new truck data
   notifyNewTruckData(truckData) {
-    console.log(`➕ Notifying new truck data: ${truckData.length} trucks`)
     this.broadcastToAll({
       type: 'NEW_TRUCK_DATA',
       data: {

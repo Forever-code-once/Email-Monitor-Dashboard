@@ -21,6 +21,7 @@ class EmailMonitorServer {
   start() {
     this.wss = new WebSocket.Server({ 
       port: this.PORT,
+      host: '0.0.0.0',
       perMessageDeflate: false 
     });
 

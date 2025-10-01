@@ -65,13 +65,6 @@ export class EmailWebSocketClient {
         }
       }
 
-      this.ws.onclose = () => {
-        this.isConnected = false
-        this.emit('disconnection', { status: 'disconnected' })
-        this.stopHeartbeat()
-        this.attemptReconnect()
-      }
-
       this.ws.onerror = (error) => {
         console.error('❌ WebSocket error:', error)
         console.error('❌ WebSocket readyState:', this.ws?.readyState)

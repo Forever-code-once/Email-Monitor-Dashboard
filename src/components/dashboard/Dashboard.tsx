@@ -33,7 +33,11 @@ import { MapView } from '../map/MapView'
 import { EmailWebSocketClient } from '@/lib/websocket'
 import { DarkModeToggle } from '../ui/DarkModeToggle'
 
-export function Dashboard() {
+interface DashboardProps {
+  onWsConnectedChange: (connected: boolean) => void
+}
+
+export function Dashboard({ onWsConnectedChange }: DashboardProps) {
   const { instance, accounts } = useMsal()
   const isAuthenticated = useIsAuthenticated()
   const [emailSenderCards, setEmailSenderCards] = useState<EmailSenderCard[]>([])
@@ -47,7 +51,6 @@ export function Dashboard() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [hasActiveAccount, setHasActiveAccount] = useState(false)
   const [viewMode, setViewMode] = useState<'customers' | 'senders' | 'raw' | 'map'>('map')
-  const [wsConnected, setWsConnected] = useState(false)
   const [mapRefreshTrigger, setMapRefreshTrigger] = useState(0)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [loadsCount, setLoadsCount] = useState(0)
@@ -112,18 +115,27 @@ export function Dashboard() {
 
   // Initialize WebSocket connection
   useEffect(() => {
+    console.log('🔍 WebSocket useEffect triggered - isAuthenticated:', isAuthenticated, 'hasActiveAccount:', hasActiveAccount)
+    
     if (isAuthenticated && hasActiveAccount) {
+      console.log('✅ Authentication conditions met, connecting to WebSocket...')
+      
       // Determine WebSocket URL based on current domain
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const host = window.location.hostname
       const wsUrl = `${protocol}//${host}/ws`
       
+      console.log('🔗 WebSocket URL:', wsUrl)
+      
       const wsClient = new EmailWebSocketClient(wsUrl)
       wsClientRef.current = wsClient
+      
+      console.log('📡 WebSocket client created')
 
       // Set up WebSocket event listeners
       wsClient.on('connection', async (data: any) => {
-        setWsConnected(true)
+        console.log('🔌 WebSocket connection event received:', data)
+        onWsConnectedChange(true)
         
         
         // Request initial database update
@@ -159,7 +171,7 @@ export function Dashboard() {
       })
 
       wsClient.on('disconnection', (data: any) => {
-        setWsConnected(false)
+        onWsConnectedChange(false)
       })
 
       wsClient.on('newEmail', (data: any) => {
@@ -230,7 +242,7 @@ export function Dashboard() {
 
       wsClient.on('error', (error: any) => {
         console.error('❌ WebSocket error:', error)
-        setWsConnected(false)
+        onWsConnectedChange(false)
         showNotification(`WebSocket connection error: ${error.message || 'Connection failed'}`, 'error', 5000)
       })
 
@@ -243,7 +255,7 @@ export function Dashboard() {
 
       wsClient.on('maxReconnectAttemptsReached', () => {
         console.error('❌ Failed to reconnect to WebSocket server')
-        setWsConnected(false)
+        onWsConnectedChange(false)
         showNotification('Lost connection to real-time server. Using manual refresh only.', 'warning', 6000)
       })
 
@@ -272,24 +284,17 @@ export function Dashboard() {
         setMapRefreshTrigger(prev => prev + 1)
       })
 
-      // Add a fallback for when WebSocket fails
-      const fallbackTimeout = setTimeout(() => {
-        if (!wsConnected) {
-          showNotification('Real-time connection failed. Using manual refresh mode.', 'warning', 6000)
-        }
-      }, 15000) // 15 second fallback
-
-      return () => {
-        clearTimeout(fallbackTimeout)
-        wsClient.disconnect()
-      }
 
       // Connect to WebSocket
+      console.log('🚀 Attempting to connect to WebSocket...')
       wsClient.connect()
 
       return () => {
+        console.log('🔌 Disconnecting WebSocket...')
         wsClient.disconnect()
       }
+    } else {
+      console.log('❌ Authentication conditions not met - skipping WebSocket connection')
     }
   }, [isAuthenticated, hasActiveAccount])
 
@@ -858,16 +863,19 @@ export function Dashboard() {
       })).filter(card => card.trucks.length > 0))
     }
 
+    // Initialize truck WebSocket connection
+    truckWebSocketClient.initialize()
+    
     // Register event handlers
-    truckWebSocketClient.on('truckDataInit', handleTruckDataInit)
-    truckWebSocketClient.on('truckDataUpdate', handleTruckDataUpdate)
-    truckWebSocketClient.on('truckDeleted', handleTruckDeleted)
+    truckWebSocketClient.instance.on('truckDataInit', handleTruckDataInit)
+    truckWebSocketClient.instance.on('truckDataUpdate', handleTruckDataUpdate)
+    truckWebSocketClient.instance.on('truckDeleted', handleTruckDeleted)
 
     // Cleanup on unmount
     return () => {
-      truckWebSocketClient.off('truckDataInit', handleTruckDataInit)
-      truckWebSocketClient.off('truckDataUpdate', handleTruckDataUpdate)
-      truckWebSocketClient.off('truckDeleted', handleTruckDeleted)
+      truckWebSocketClient.instance.off('truckDataInit', handleTruckDataInit)
+      truckWebSocketClient.instance.off('truckDataUpdate', handleTruckDataUpdate)
+      truckWebSocketClient.instance.off('truckDeleted', handleTruckDeleted)
     }
   }, [isAuthenticated, hasActiveAccount])
 
@@ -912,7 +920,7 @@ export function Dashboard() {
       
       // Add connection event listeners for debugging
       wsClient.on('connection', (data) => {
-        setWsConnected(true)
+        onWsConnectedChange(true)
         showNotification('WebSocket connected!', 'success', 3000)
         setError(null)
       })
@@ -923,7 +931,7 @@ export function Dashboard() {
       })
       
       wsClient.on('disconnection', (data) => {
-        setWsConnected(false)
+        onWsConnectedChange(false)
       })
       
       wsClient.connect()
@@ -1106,10 +1114,8 @@ export function Dashboard() {
     const customersWithTrucks = new Set<string>()
 
     customerCards.forEach((card, cardIndex) => {
-      console.log(`👥 Customer ${cardIndex}: ${card.customer} (${card.trucks.length} trucks)`)
       let hasTrucksForDate = false
       card.trucks.forEach((truck: any, truckIndex: number) => {
-        console.log(`  🚛 Truck ${truckIndex}: date="${truck.date}", city="${truck.city}", state="${truck.state}"`)
         
         // Normalize both dates for comparison (remove leading zeros)
         const normalizeDate = (dateStr: string) => {
@@ -1123,12 +1129,10 @@ export function Dashboard() {
         const normalizedTruckDate = normalizeDate(truck.date)
         const normalizedSelectedDate = normalizeDate(selectedDateStr)
         
-        console.log(`    🔍 Comparing: "${normalizedTruckDate}" === "${normalizedSelectedDate}"`)
         
         if (normalizedTruckDate === normalizedSelectedDate) {
           trucksCount++
           hasTrucksForDate = true
-          console.log(`    ✅ MATCH! Added to count. Total: ${trucksCount}`)
         }
       })
       if (hasTrucksForDate) {
@@ -1137,7 +1141,6 @@ export function Dashboard() {
     })
 
     customersCount = customersWithTrucks.size
-    console.log(`📈 FINAL COUNTS: ${trucksCount} trucks, ${customersCount} customers`)
     setFilteredTrucksCount(trucksCount)
     setFilteredCustomersCount(customersCount)
   }, [selectedDate, customerCards])

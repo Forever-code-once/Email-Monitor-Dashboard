@@ -5,8 +5,15 @@ export class TruckWebSocketClient {
   private reconnectAttempts: number = 0
   private isConnected: boolean = false
   private callbacks: Map<string, Function[]> = new Map()
+  private initialized: boolean = false
 
   constructor() {
+    // Don't connect immediately - wait for initialize() to be called
+  }
+
+  initialize() {
+    if (this.initialized) return
+    this.initialized = true
     this.connect()
   }
 
@@ -148,5 +155,18 @@ export class TruckWebSocketClient {
   }
 }
 
-// Create singleton instance
-export const truckWebSocketClient = new TruckWebSocketClient()
+// Create singleton instance (lazy initialization)
+let _truckWebSocketClient: TruckWebSocketClient | null = null
+
+export const truckWebSocketClient = {
+  get instance() {
+    if (!_truckWebSocketClient) {
+      _truckWebSocketClient = new TruckWebSocketClient()
+    }
+    return _truckWebSocketClient
+  },
+  
+  initialize() {
+    this.instance.initialize()
+  }
+}

@@ -10,6 +10,7 @@ export default function Home() {
   const isAuthenticated = useIsAuthenticated()
   const { instance } = useMsal()
   const [forceLogin, setForceLogin] = useState(true)
+  const [wsConnected, setWsConnected] = useState(false)
 
   // Force logout and account selection on every page refresh
   useEffect(() => {
@@ -36,7 +37,7 @@ export default function Home() {
   return (
     <AppLayout
       lastRefresh={new Date()}
-      wsConnected={false}
+      wsConnected={wsConnected}
       onLogout={() => {
         instance.logoutRedirect({
           postLogoutRedirectUri: window.location.origin
@@ -47,7 +48,7 @@ export default function Home() {
         console.log('Send token clicked')
       }}
     >
-      <Dashboard />
+      <Dashboard onWsConnectedChange={setWsConnected} />
     </AppLayout>
   )
 } 
