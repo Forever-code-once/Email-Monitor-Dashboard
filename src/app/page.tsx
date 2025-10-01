@@ -45,7 +45,6 @@ export default function Home() {
       }}
       onSendToken={() => {
         // Handle send token functionality
-        console.log('Send token clicked')
       }}
     >
       <Dashboard onWsConnectedChange={setWsConnected} />

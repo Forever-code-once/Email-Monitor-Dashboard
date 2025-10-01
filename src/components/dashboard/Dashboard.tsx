@@ -115,26 +115,21 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    console.log('🔍 WebSocket useEffect triggered - isAuthenticated:', isAuthenticated, 'hasActiveAccount:', hasActiveAccount)
     
     if (isAuthenticated && hasActiveAccount) {
-      console.log('✅ Authentication conditions met, connecting to WebSocket...')
       
       // Determine WebSocket URL based on current domain
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const host = window.location.hostname
       const wsUrl = `${protocol}//${host}/ws`
       
-      console.log('🔗 WebSocket URL:', wsUrl)
       
       const wsClient = new EmailWebSocketClient(wsUrl)
       wsClientRef.current = wsClient
       
-      console.log('📡 WebSocket client created')
 
       // Set up WebSocket event listeners
       wsClient.on('connection', async (data: any) => {
-        console.log('🔌 WebSocket connection event received:', data)
         onWsConnectedChange(true)
         
         
@@ -286,15 +281,12 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
 
 
       // Connect to WebSocket
-      console.log('🚀 Attempting to connect to WebSocket...')
       wsClient.connect()
 
       return () => {
-        console.log('🔌 Disconnecting WebSocket...')
         wsClient.disconnect()
       }
     } else {
-      console.log('❌ Authentication conditions not met - skipping WebSocket connection')
     }
   }, [isAuthenticated, hasActiveAccount])
 
@@ -418,7 +410,6 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
       // setCustomerCards(finalCustomerCardsArray)
       
       // Reload truck data from database after processing
-      console.log('🔄 Reloading truck data from database after email processing...')
       await loadStoredTruckData()
       
       const totalTrucks = finalCustomerCardsArray.reduce((sum, card) => sum + card.trucks.length, 0)
@@ -627,7 +618,6 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
       const dateParam = filterDate ? filterDate.toISOString().split('T')[0] : ''
       const url = `/api/trucks/stored${dateParam ? `?date=${dateParam}` : ''}`
       
-      console.log(`🔄 Loading stored truck data from database: ${url}`)
       
       const response = await fetch(url)
       if (!response.ok) {
@@ -635,10 +625,8 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
       }
       
       const result = await response.json()
-      console.log('📊 Database response:', result)
       
       if (result.success && Array.isArray(result.trucks)) {
-        console.log(`💾 Database returned ${result.trucks.length} trucks (${result.totalInDatabase} total in database)`)
         
         // Convert database format to CustomerCard format
         const customerMap = new Map<string, CustomerCard>()
@@ -659,17 +647,6 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
         })
         
         const customerCards = Array.from(customerMap.values())
-        console.log(`👥 Created ${customerCards.length} customer cards from stored data`)
-        
-        // Debug: Log the first few customer cards
-        customerCards.slice(0, 3).forEach((card, index) => {
-          console.log(`📋 Customer Card ${index}:`, {
-            customer: card.customer,
-            email: card.customerEmail,
-            truckCount: card.trucks.length,
-            trucks: card.trucks.map(t => ({ date: t.date, city: t.city, state: t.state }))
-          })
-        })
         
         setCustomerCards(customerCards)
         
@@ -680,7 +657,6 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
         
         return result.trucks.length
       } else {
-        console.log('📭 No stored truck data found')
         setCustomerCards([])
         return 0
       }
@@ -749,21 +725,16 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
     // Initial data loading when authenticated
     if (isAuthenticated && hasActiveAccount) {
       const timer = setTimeout(async () => {
-        console.log('🚀 Starting initial data loading...')
         
         // First, load stored truck data from database
         const storedCount = await loadStoredTruckData()
-        console.log(`💾 Loaded ${storedCount} trucks from database`)
         
         // If database is empty, process emails to populate it
         if (storedCount === 0) {
-          console.log('📧 Database is empty, processing emails to populate truck data...')
           await fetchAndProcessEmails()
         } else {
-          console.log('✅ Database has data, using real-time monitoring only')
         }
         
-        console.log('✅ Initial data loading complete')
       }, 500)
       
       return () => clearTimeout(timer)
@@ -774,11 +745,9 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
   useEffect(() => {
     if (!isAuthenticated || !hasActiveAccount) return
 
-    console.log('🔌 Setting up truck WebSocket handlers...')
 
     // Handle initial truck data
     const handleTruckDataInit = (data: any) => {
-      console.log('📊 Received initial truck data:', data.totalCount, 'trucks')
       // Convert database format to frontend format
       const formattedTrucks = data.trucks.map((truck: any) => ({
         id: truck.id,
@@ -817,7 +786,6 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
 
     // Handle truck data updates
     const handleTruckDataUpdate = (data: any) => {
-      console.log('🔄 Received truck data update:', data.totalCount, 'trucks')
       // Same conversion as above
       const formattedTrucks = data.trucks.map((truck: any) => ({
         id: truck.id,
@@ -855,7 +823,6 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
 
     // Handle truck deletion
     const handleTruckDeleted = (data: any) => {
-      console.log('🗑️ Received truck deletion notification:', data.truckId)
       // Remove truck from customer cards
       setCustomerCards(prev => prev.map(card => ({
         ...card,
@@ -885,24 +852,19 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
 
   const handleRefresh = async () => {
     if (isAuthenticated && hasActiveAccount) {
-      console.log('🔄 Manual refresh triggered...')
       
       // Clear existing customer cards
       setCustomerCards([])
       
       // Reload stored truck data from database
       const storedCount = await loadStoredTruckData()
-      console.log(`💾 Refreshed with ${storedCount} trucks from database`)
       
       // If database is empty, process emails to populate it
       if (storedCount === 0) {
-        console.log('📧 Database is empty, processing emails to populate truck data...')
         await fetchAndProcessEmails()
       } else {
-        console.log('✅ Database has data, using real-time monitoring only')
       }
       
-      console.log('✅ Manual refresh complete')
     }
   }
 
@@ -1106,8 +1068,6 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
       day: '2-digit'
     })
 
-    console.log(`🔍 CALCULATING COUNTS for date: ${selectedDateStr}`)
-    console.log(`📊 Total customerCards: ${customerCards.length}`)
 
     let trucksCount = 0
     let customersCount = 0
@@ -1290,7 +1250,6 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
               onDateChange={handleDateChange}
               onLoadsCountChange={handleLoadsCountChange}
               onTruckDeleted={() => {
-                console.log('🎯 Truck deleted, UI updated locally (no system refresh)')
                 // DO NOT refresh the system - just log the deletion
               }}
             />

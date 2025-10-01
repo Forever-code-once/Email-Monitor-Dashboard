@@ -177,7 +177,6 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
       targetDate = `${parseInt(month)}/${parseInt(day)}`
     }
     
-    console.log(`🔍 Checking truck availability for ${pickupCity} on date: ${targetDate}`)
     
     // Get all trucks for the selected date to check for city variations
     const [allTrucks] = await connection.execute(`
@@ -186,7 +185,6 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
     `, [targetDate])
     
     const trucks = allTrucks as Array<{city: string, state: string}>
-    console.log(`📊 Found ${trucks.length} trucks on ${targetDate}`)
     
     // Check for exact city matches first
     let exactMatches = 0
@@ -195,16 +193,13 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
         // If state is specified, check state match
         if (stateName && truck.state.toUpperCase() === stateName) {
           exactMatches++
-          console.log(`✅ Exact match found: ${truck.city}, ${truck.state}`)
         } else if (!stateName) {
           // No state specified, any state match is good
           exactMatches++
-          console.log(`✅ City match found: ${truck.city}, ${truck.state}`)
         }
       }
     }
     
-    console.log(`📊 Exact matches found: ${exactMatches}`)
     
     if (exactMatches > 0) {
       return true
@@ -216,23 +211,19 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
         // State specified - check within state or across all states based on radius
         if (radiusMiles > 1000) {
           // Large radius - check all states
-          console.log(`📊 Large radius (${radiusMiles}mi) - checking all states`)
           return trucks.length > 0
         } else {
           // Small radius - check same state only
           const stateMatches = trucks.filter(truck => truck.state.toUpperCase() === stateName)
-          console.log(`📊 Small radius (${radiusMiles}mi) - matches found in state ${stateName}: ${stateMatches.length}`)
           return stateMatches.length > 0
         }
       } else {
         // No state specified - for large radii, check all states
         if (radiusMiles > 1000) {
-          console.log(`📊 Large radius (${radiusMiles}mi) - no state specified - checking all states`)
           return trucks.length > 0
         } else {
           // Small radius, no state - check for city name variations
           const cityMatches = trucks.filter(truck => citiesMatch(cityName, truck.city))
-          console.log(`📊 Small radius (${radiusMiles}mi) - city variations found: ${cityMatches.length}`)
           return cityMatches.length > 0
         }
       }

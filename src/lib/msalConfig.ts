@@ -17,7 +17,6 @@ export const msalConfig: Configuration = {
       logLevel: 3, // Error level
       loggerCallback: (level, message, containsPii) => {
         if (!containsPii) {
-          console.log(message)
         }
       }
     }

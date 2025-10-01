@@ -106,7 +106,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     const daysDiff = Math.round(timeDiff / (1000 * 60 * 60 * 24))
     
     setDateOffset(daysDiff)
-    console.log(`📅 Date changed to ${newDate.toLocaleDateString()}, offset: ${daysDiff} days from today`)
   }, [])
   
   // Distance measurement state
@@ -150,13 +149,11 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
       
       // Check if we've crossed midnight since last check
       if (today.getTime() > lastCheck.getTime()) {
-        console.log('🕛 Midnight detected! Advancing dashboard date...')
         
         // Calculate new date with preserved offset
         const newDate = new Date(today)
         newDate.setDate(today.getDate() + dateOffset)
         
-        console.log(`📅 Date advanced: ${selectedDate.toLocaleDateString()} → ${newDate.toLocaleDateString()} (offset: +${dateOffset} days)`)
         
         updateSelectedDate(newDate)
         setLastMidnightCheck(now)
@@ -652,7 +649,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
 
   const handleTruckDeleted = () => {
     // DO NOT refresh the map - just notify parent component
-    console.log('🎯 Truck deleted, UI updated locally (no map refresh)')
     
     // Notify parent component (Dashboard) - but no system refresh
     if (onTruckDeleted) {

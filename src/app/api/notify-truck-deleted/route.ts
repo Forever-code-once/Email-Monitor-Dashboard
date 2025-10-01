@@ -16,11 +16,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`📡 Notifying truck WebSocket server about deletion: ${truckId}`)
 
     // For now, just log the notification
     // The truck WebSocket server will handle this via database monitoring
-    console.log(`📡 Truck deletion notification logged: ${truckId}`)
     
     // TODO: Implement direct WebSocket notification when server is running
 

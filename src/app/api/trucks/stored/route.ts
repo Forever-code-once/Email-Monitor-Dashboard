@@ -8,13 +8,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') // Optional date filter (YYYY-MM-DD or MM/DD format)
     
-    console.log(`📊 FETCHING STORED TRUCKS: ${date ? `for date ${date}` : 'all trucks'}`)
 
     // Get all truck availability from database
     const trucks = await awsDatabaseQueries.getAllTruckAvailability()
     const trucksArray = Array.isArray(trucks) ? trucks : []
     
-    console.log(`📦 RAW DATABASE TRUCKS: ${trucksArray.length} total`)
 
     // Filter by date if provided
     let filteredTrucks = trucksArray
@@ -24,7 +22,6 @@ export async function GET(request: NextRequest) {
       filteredTrucks = trucksArray.filter((truck: any) => {
         return truck.Date === targetDate || truck.date === targetDate
       })
-      console.log(`📅 FILTERED TRUCKS: ${filteredTrucks.length} for date ${targetDate}`)
     }
 
     // Convert database format to frontend format (MySQL snake_case to camelCase)
@@ -43,7 +40,6 @@ export async function GET(request: NextRequest) {
       isChecked: false
     }))
 
-    console.log(`✅ RETURNING: ${formattedTrucks.length} formatted trucks`)
 
     return NextResponse.json({
       success: true,

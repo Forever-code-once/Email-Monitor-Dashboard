@@ -36,14 +36,11 @@ function truncateEmailContent(content: string, maxLength: number = 8000): string
 // Function to store parsed truck data to database
 async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
   try {
-    console.log(`💾 STORING: ${parsedData.trucks?.length || 0} trucks from ${parsedData.customer}`)
     
     // LATEST EMAIL ONLY LOGIC: Delete all previous data for this customer
     // This function is only called for newer emails, so we can safely delete old data
-    console.log(`🗑️ DELETING: All previous trucks for customer ${parsedData.customerEmail}`)
     await awsDatabaseQueries.deleteAllTrucksForCustomer(parsedData.customerEmail)
     
-    console.log(`🗑️ DELETING: All previous emails for customer ${parsedData.customerEmail}`)
     await awsDatabaseQueries.deleteAllEmailsForCustomer(parsedData.customerEmail)
     
     // First, save the email record
@@ -91,7 +88,6 @@ async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
       }
     }
     
-    console.log(`✅ REPLACED: ${parsedData.trucks?.length || 0} trucks successfully (old data deleted)`)
   } catch (error) {
     console.error('❌ Error storing truck data to database:', error)
     // Don't throw error - continue with email parsing even if database fails
@@ -130,7 +126,6 @@ export async function POST(request: NextRequest) {
 
     // LATEST EMAIL ONLY LOGIC: Always process the email - replacement logic will handle old data
     const customerEmail = from.address
-    console.log(`📧 PROCESSING: New email from ${customerEmail} - will replace any existing data`)
 
      // Strip HTML tags and decode HTML entities
      const stripHtml = (html: string) => {

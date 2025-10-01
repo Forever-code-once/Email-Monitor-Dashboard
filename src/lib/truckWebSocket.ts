@@ -31,12 +31,10 @@ export class TruckWebSocketClient {
         ? `${protocol}://localhost:8081`
         : `${protocol}://ai.conardlogistics.com/truck-ws`
       
-      console.log('🚛 Connecting to truck WebSocket:', wsUrl)
       
       this.ws = new WebSocket(wsUrl)
 
       this.ws.onopen = () => {
-        console.log('✅ Truck WebSocket connected')
         this.isConnected = true
         this.reconnectAttempts = 0
         this.emit('connected')
@@ -45,7 +43,6 @@ export class TruckWebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data)
-          console.log('📨 Truck WebSocket message:', message.type)
           
           switch (message.type) {
             case 'TRUCK_DATA_INIT':
@@ -61,7 +58,6 @@ export class TruckWebSocketClient {
               this.emit('newTruckData', message.data)
               break
             default:
-              console.log('🚛 Unknown message type:', message.type)
           }
         } catch (error) {
           console.error('❌ Error parsing WebSocket message:', error)
@@ -69,7 +65,6 @@ export class TruckWebSocketClient {
       }
 
       this.ws.onclose = () => {
-        console.log('🔌 Truck WebSocket disconnected')
         this.isConnected = false
         this.emit('disconnected')
         this.handleReconnect()
@@ -93,7 +88,6 @@ export class TruckWebSocketClient {
     }
 
     this.reconnectAttempts++
-    console.log(`🔄 Attempting to reconnect truck WebSocket (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`)
     
     setTimeout(() => {
       this.connect()

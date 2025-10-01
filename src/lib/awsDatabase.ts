@@ -36,7 +36,6 @@ export async function testAwsConnection(): Promise<boolean> {
     const connection = await getAwsConnection()
     await connection.ping()
     await connection.end()
-    console.log('✅ AWS RDS connection successful')
     return true
   } catch (error) {
     console.error('❌ AWS RDS connection failed:', error)

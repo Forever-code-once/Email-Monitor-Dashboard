@@ -14,12 +14,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`🗑️ DELETING TRUCK: ID ${truckId}`)
 
     // Soft delete the truck (set is_deleted = 1)
     const result = await awsDatabaseQueries.deleteTruckAvailability(truckId)
     
-    console.log(`✅ TRUCK DELETED: ID ${truckId}`)
 
     // Notify WebSocket server about truck deletion
     try {
@@ -37,7 +35,6 @@ export async function POST(request: NextRequest) {
       })
       
       if (response.ok) {
-        console.log(`📡 Notified WebSocket server about truck deletion: ${truckId}`)
       }
     } catch (wsError) {
       console.error('❌ Failed to notify WebSocket server:', wsError)

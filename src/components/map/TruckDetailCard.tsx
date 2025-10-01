@@ -117,7 +117,6 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
 
   const handleDeleteTruck = async (truckId: string) => {
     try {
-      console.log(`🗑️ DELETING TRUCK: ${truckId}`)
       
       // Call AWS RDS delete API
       const response = await fetch('/api/trucks/delete', {
@@ -135,7 +134,6 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
       const result = await response.json()
       
       if (result.success) {
-        console.log(`✅ TRUCK DELETED: ${truckId}`)
         
         // Remove from visible trucks immediately (UI only)
         setVisibleTrucks(prev => prev.filter(truck => truck.id !== truckId))
@@ -146,7 +144,6 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
         setCheckedTrucks(newChecked)
         
         // DO NOT refresh the system - just update UI locally
-        console.log(`🎯 Truck marked as deleted in database, UI updated locally`)
       } else {
         throw new Error(result.error || 'Failed to delete truck')
       }

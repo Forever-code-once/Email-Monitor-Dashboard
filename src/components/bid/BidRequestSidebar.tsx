@@ -109,7 +109,6 @@ export function BidRequestSidebar({ truckPins = [], onRefresh, className, select
       )
       
       if (expiredRequests.length > 0) {
-        console.log(`🗑️ Auto-deleting ${expiredRequests.length} expired bid requests`)
         
         // Delete expired requests
         expiredRequests.forEach(request => {

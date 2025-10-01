@@ -14,12 +14,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`🔄 RESTORING TRUCK: ID ${truckId}`)
 
     // Restore the truck (set is_deleted = 0)
     const result = await awsDatabaseQueries.restoreTruckAvailability(truckId)
     
-    console.log(`✅ TRUCK RESTORED: ID ${truckId}`)
 
     return NextResponse.json({
       success: true,
