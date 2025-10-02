@@ -9,7 +9,7 @@ import {
   Box,
   IconButton,
 } from '@mui/material'
-import { Logout, Key } from '@mui/icons-material'
+import { Logout, Key, Menu, ChevronLeft } from '@mui/icons-material'
 import { DarkModeToggle } from '../ui/DarkModeToggle'
 
 interface HeaderProps {
@@ -17,9 +17,11 @@ interface HeaderProps {
   wsConnected: boolean
   onLogout: () => void
   onSendToken: () => void
+  sidebarCollapsed: boolean
+  onToggleSidebar: () => void
 }
 
-export function Header({ lastRefresh, wsConnected, onLogout, onSendToken }: HeaderProps) {
+export function Header({ lastRefresh, wsConnected, onLogout, onSendToken, sidebarCollapsed, onToggleSidebar }: HeaderProps) {
   return (
     <AppBar 
       position="static" 
@@ -31,6 +33,20 @@ export function Header({ lastRefresh, wsConnected, onLogout, onSendToken }: Head
       }}
     >
       <Toolbar>
+        {/* Sidebar Toggle Button */}
+        <IconButton 
+          onClick={onToggleSidebar}
+          sx={{ 
+            color: 'white',
+            mr: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(255, 255, 255, 0.1)'
+            }
+          }}
+        >
+          {sidebarCollapsed ? <Menu /> : <ChevronLeft />}
+        </IconButton>
+        
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
           Mr. Conard AI Truck & Loads Monitor
         </Typography>

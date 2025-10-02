@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
 import { Box } from '@mui/material'
 import { BidRequestSidebar } from '../bid/BidRequestSidebar'
 import { Header } from './Header'
@@ -26,6 +26,7 @@ export function AppLayout({
   onSendToken = () => {},
   selectedDate = new Date()
 }: AppLayoutProps) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   return (
     <Box sx={{ 
       height: '100vh', 
@@ -40,6 +41,8 @@ export function AppLayout({
         wsConnected={wsConnected}
         onLogout={onLogout}
         onSendToken={onSendToken}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
       
       {/* Content Area with Sidebar */}
@@ -55,6 +58,7 @@ export function AppLayout({
           truckPins={truckPins}
           onRefresh={onRefresh}
           selectedDate={selectedDate}
+          collapsed={sidebarCollapsed}
         />
         
         {/* Main Content Area */}
@@ -62,8 +66,9 @@ export function AppLayout({
           marginLeft: '20px', 
           marginRight: '20px',
           marginTop: '20px',
-          width: 'calc(100vw - 25%)',
-          overflow: 'hidden'
+          width: sidebarCollapsed ? 'calc(100vw - 80px)' : 'calc(100vw - 25%)',
+          overflow: 'hidden',
+          transition: 'width 0.3s ease-in-out'
         }}>
           {children}
         </Box>

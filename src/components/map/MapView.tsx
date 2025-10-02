@@ -727,20 +727,20 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
         availableDates={dates}
       />
       
-              <TruckMap
-          selectedDate={selectedDate}
-          onDateChange={updateSelectedDate}
-          onPinClick={handlePinClick}
-          pins={pins}
-          loadPins={loadPins}
-          loading={loading || loadingLoads}
-          onLoadRightClick={handleLoadRightClick}
-          onTruckRightClick={handleTruckRightClick}
-          selectedLoad={selectedLoad}
-          selectedTruck={selectedTruck}
-          distanceMeasurement={distanceMeasurement}
-          onClearDistanceMeasurement={clearDistanceMeasurement}
-        />
+      <TruckMap
+        selectedDate={selectedDate}
+        onDateChange={updateSelectedDate}
+        onPinClick={handlePinClick}
+        pins={pins}
+        loadPins={loadPins}
+        loading={loading || loadingLoads}
+        onLoadRightClick={handleLoadRightClick}
+        onTruckRightClick={handleTruckRightClick}
+        selectedLoad={selectedLoad}
+        selectedTruck={selectedTruck}
+        distanceMeasurement={distanceMeasurement}
+        onClearDistanceMeasurement={clearDistanceMeasurement}
+      />
       
              {selectedPin && (
                <Box

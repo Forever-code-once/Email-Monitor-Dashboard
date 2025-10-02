@@ -17,9 +17,10 @@ interface BidRequestSidebarProps {
   onRefresh?: () => void
   className?: string
   selectedDate?: Date
+  collapsed?: boolean
 }
 
-export function BidRequestSidebar({ truckPins = [], onRefresh, className, selectedDate = new Date() }: BidRequestSidebarProps) {
+export function BidRequestSidebar({ truckPins = [], onRefresh, className, selectedDate = new Date(), collapsed = false }: BidRequestSidebarProps) {
   const [bidRequests, setBidRequests] = useState<BidRequest[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
@@ -138,7 +139,7 @@ export function BidRequestSidebar({ truckPins = [], onRefresh, className, select
     <Box 
       className={className}
       sx={{ 
-        width: '25%', 
+        width: collapsed ? '60px' : '25%', 
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -152,38 +153,51 @@ export function BidRequestSidebar({ truckPins = [], onRefresh, className, select
     >
       {/* Header */}
       <Box sx={{ 
-        p: 3, 
+        p: collapsed ? 1 : 3, 
         borderBottom: `2px solid ${darkMode ? theme.palette.divider : '#e3f2fd'}`,
         background: darkMode 
           ? `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`
           : 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
         color: 'white',
-        transition: 'all 0.3s ease-in-out'
+        transition: 'all 0.3s ease-in-out',
+        display: 'flex',
+        flexDirection: collapsed ? 'column' : 'column',
+        alignItems: collapsed ? 'center' : 'flex-start',
+        justifyContent: collapsed ? 'center' : 'flex-start'
       }}>
-        <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
-          🚛 Bid Requests
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{ 
-            width: 8, 
-            height: 8, 
-            borderRadius: '50%', 
-            backgroundColor: bidRequests.length > 0 ? '#4caf50' : '#ff9800' 
-          }} />
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            {bidRequests.length} active request{bidRequests.length !== 1 ? 's' : ''}
+        {collapsed ? (
+          <Typography variant="h6" sx={{ fontSize: '1.5rem' }}>
+            🚛
           </Typography>
-        </Box>
+        ) : (
+          <>
+            <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
+              🚛 Bid Requests
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ 
+                width: 8, 
+                height: 8, 
+                borderRadius: '50%', 
+                backgroundColor: bidRequests.length > 0 ? '#4caf50' : '#ff9800' 
+              }} />
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                {bidRequests.length} active request{bidRequests.length !== 1 ? 's' : ''}
+              </Typography>
+            </Box>
+          </>
+        )}
       </Box>
       
       {/* Content */}
-      <Box sx={{ 
-        flex: 1, 
-        overflow: 'auto', 
-        p: 3,
-        backgroundColor: darkMode ? theme.palette.background.default : '#f8f9fa',
-        transition: 'all 0.3s ease-in-out'
-      }}>
+      {!collapsed && (
+        <Box sx={{ 
+          flex: 1, 
+          overflow: 'auto', 
+          p: 3,
+          backgroundColor: darkMode ? theme.palette.background.default : '#f8f9fa',
+          transition: 'all 0.3s ease-in-out'
+        }}>
         {error && (
           <Alert 
             severity="error" 
@@ -255,6 +269,7 @@ export function BidRequestSidebar({ truckPins = [], onRefresh, className, select
           </Box>
         )}
       </Box>
+      )}
     </Box>
   )
 }
