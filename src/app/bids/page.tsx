@@ -1,11 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Box } from '@mui/material'
+import { useIsAuthenticated, useMsal } from '@azure/msal-react'
 import { BidRequestSidebar } from '@/components/bid/BidRequestSidebar'
+import { LoginScreen } from '@/components/auth/LoginScreen'
 
 export default function BidsPage() {
+  const isAuthenticated = useIsAuthenticated()
+  const { instance } = useMsal()
   const [selectedDate] = useState<Date>(new Date())
+  const [forceLogin, setForceLogin] = useState(true)
+
+  // Force logout and account selection on every page refresh
+  useEffect(() => {
+    // Clear all cache and force logout on page load
+    instance.clearCache()
+    
+    // If there's an active account, log it out
+    const account = instance.getActiveAccount()
+    if (account) {
+      instance.logoutRedirect({
+        account: account,
+        postLogoutRedirectUri: window.location.origin + '/bids'
+      })
+    } else {
+      setForceLogin(false)
+    }
+  }, [instance])
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated || forceLogin) {
+    return <LoginScreen />
+  }
 
   return (
     <Box sx={{ 
