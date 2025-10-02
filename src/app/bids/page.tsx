@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Box, Typography, Alert, CircularProgress } from '@mui/material'
+import { Box, Typography, Alert, CircularProgress, useTheme } from '@mui/material'
 import { useIsAuthenticated, useMsal } from '@azure/msal-react'
 import { BidRequestFormSidebar } from '@/components/bid/BidRequestFormSidebar'
 import { BidRequestItem } from '@/components/bid/BidRequestItem'
 import { LoginScreen } from '@/components/auth/LoginScreen'
 import { BidRequest } from '@/types/bid'
+import { useTheme as useCustomTheme } from '@/components/providers/ThemeProvider'
 
 export default function BidsPage() {
   const isAuthenticated = useIsAuthenticated()
@@ -15,6 +16,8 @@ export default function BidsPage() {
   const [forceLogin, setForceLogin] = useState(true)
   const [bidRequests, setBidRequests] = useState<BidRequest[]>([])
   const [error, setError] = useState<string>('')
+  const theme = useTheme()
+  const { darkMode } = useCustomTheme()
 
   // Fetch bid requests from API
   const fetchBidRequests = async () => {
@@ -94,7 +97,7 @@ export default function BidsPage() {
       width: '100vw', 
       overflow: 'hidden',
       display: 'flex',
-      backgroundColor: '#f5f5f5'
+      backgroundColor: darkMode ? theme.palette.background.default : '#f5f5f5'
     }}>
       {/* Form Only Sidebar */}
       <BidRequestFormSidebar 
@@ -109,15 +112,17 @@ export default function BidsPage() {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: '#ffffff',
-        borderLeft: '1px solid #e0e0e0',
+        backgroundColor: darkMode ? theme.palette.background.paper : '#ffffff',
+        borderLeft: `1px solid ${darkMode ? theme.palette.divider : '#e0e0e0'}`,
         overflow: 'hidden'
       }}>
         {/* Header */}
         <Box sx={{ 
           p: 3, 
-          borderBottom: '2px solid #e3f2fd',
-          background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+          borderBottom: `2px solid ${darkMode ? theme.palette.divider : '#e3f2fd'}`,
+          background: darkMode 
+            ? `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`
+            : 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
           color: 'white'
         }}>
           <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
@@ -141,7 +146,7 @@ export default function BidsPage() {
           flex: 1, 
           overflow: 'auto', 
           p: 3,
-          backgroundColor: '#f8f9fa'
+          backgroundColor: darkMode ? theme.palette.background.default : '#f8f9fa'
         }}>
           {error && (
             <Alert 
@@ -163,8 +168,8 @@ export default function BidsPage() {
               textAlign: 'center', 
               p: 4, 
               borderRadius: 2,
-              backgroundColor: '#ffffff',
-              border: '2px dashed #e0e0e0'
+              backgroundColor: darkMode ? theme.palette.background.paper : '#ffffff',
+              border: `2px dashed ${darkMode ? theme.palette.divider : '#e0e0e0'}`
             }}>
               <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
                 📋 No active bid requests
