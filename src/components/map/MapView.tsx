@@ -174,6 +174,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     return () => clearInterval(interval)
   }, [autoRefresh, lastMidnightCheck, dateOffset, selectedDate, onDateChange])
 
+
   // Check if cache is valid
   const isCacheValid = useCallback(() => {
     if (!loadsCache) return false
@@ -330,6 +331,27 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
       fetchAndCreateLoadPins(selectedDate, dateRange || undefined)
     }
   }, [selectedDate, dateRange, fetchAndCreateLoadPins, initialized])
+
+  // Nuclear fix: Refresh load pins every 2 minutes to ensure correct pin placement
+  useEffect(() => {
+    if (!initialized) return
+
+    const refreshLoadPins = () => {
+      console.log('🔄 Refreshing load pins (2-minute interval) - ensuring correct pin placement')
+      
+      // Clear cache to force fresh data fetch
+      setLoadsCache(null)
+      localStorage.removeItem('loadsCache')
+      
+      // Refresh load pins with current date
+      fetchAndCreateLoadPins(selectedDate, dateRange || undefined)
+    }
+
+    // Set up 2-minute interval for load pin refresh
+    const loadRefreshInterval = setInterval(refreshLoadPins, 120000) // 2 minutes = 120000ms
+    
+    return () => clearInterval(loadRefreshInterval)
+  }, [initialized, selectedDate, dateRange, fetchAndCreateLoadPins])
 
   // Notify parent component when selected date changes
   useEffect(() => {
