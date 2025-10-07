@@ -11,6 +11,7 @@ import {
 import { MapPin } from '@/types/map'
 import { LoadPin } from '@/lib/loadGeocoding'
 import { useTheme } from '@/components/providers/ThemeProvider'
+import { normalizeCityName } from '@/lib/geocoding'
 
 // Set Mapbox access token - use public token for client-side
 // For production, you'll need to either:
@@ -151,7 +152,7 @@ export function TruckMap({
       }).setHTML(`
         <div style="padding: 8px; min-width: 150px;">
           <div style="font-weight: bold; margin-bottom: 4px;">
-            ${pin.city}, ${pin.state}
+            ${normalizeCityName(pin.city, pin.state)}, ${pin.state}
           </div>
           <div style="font-size: 12px; color: #666;">
             ${pin.truckCount} truck${pin.truckCount !== 1 ? 's' : ''} available
@@ -216,7 +217,7 @@ export function TruckMap({
       }).setHTML(`
         <div style="padding: 8px; min-width: 150px;">
           <div style="font-weight: bold; margin-bottom: 4px;">
-            ${loadPin.city}, ${loadPin.state}
+            ${normalizeCityName(loadPin.city, loadPin.state)}, ${loadPin.state}
           </div>
           <div style="font-size: 12px; color: #666;">
             ${loadPin.loadCount} load${loadPin.loadCount !== 1 ? 's' : ''} available

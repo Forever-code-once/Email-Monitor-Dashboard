@@ -31,6 +31,7 @@ import {
 import { TruckDetailCardProps } from '@/types/map'
 import { TruckAvailability } from '@/types'
 import { useTheme } from '@/components/providers/ThemeProvider'
+import { normalizeCityName } from '@/lib/geocoding'
 
 export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmails }: TruckDetailCardProps) {
   const { darkMode } = useTheme()
@@ -267,7 +268,7 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <LocationOn sx={{ color: 'primary.main' }} />
             <Typography variant="h6">
-              {pin.city}, {pin.state}
+              {normalizeCityName(pin.city, pin.state)}, {pin.state}
             </Typography>
           </Box>
           <IconButton onClick={onClose} size="small">
@@ -363,7 +364,7 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                            <LocalShipping sx={{ color: 'primary.main', fontSize: 18 }} />
                            <Typography variant="subtitle2" fontWeight="medium">
-                            {truck.city}, {truck.state}
+                            {normalizeCityName(truck.city, truck.state)}, {truck.state}
                            </Typography>
                          </Box>
                        }

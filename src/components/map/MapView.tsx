@@ -353,6 +353,7 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     return () => clearInterval(loadRefreshInterval)
   }, [initialized, selectedDate, dateRange, fetchAndCreateLoadPins])
 
+
   // Notify parent component when selected date changes
   useEffect(() => {
     if (onDateChange) {
@@ -569,11 +570,14 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
         const geocodeResult = await geocodeAddress(city, state)
         
         if (geocodeResult) {
+          // Use the normalized city name from geocoding result for display
+          const normalizedCity = geocodeResult.formattedAddress.split(',')[0].trim()
+          
           return {
             id: locationKey,
             latitude: geocodeResult.latitude,
             longitude: geocodeResult.longitude,
-            city: trucks[0].city,
+            city: normalizedCity,
             state: trucks[0].state,
             trucks: trucks,
             date: range ? 
@@ -600,6 +604,23 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
       setLoading(false)
     }
   }, [customerCards])
+
+  // Nuclear fix: Refresh truck pins every 2 minutes to ensure correct pin placement
+  useEffect(() => {
+    if (!initialized) return
+
+    const refreshTruckPins = () => {
+      console.log('🔄 Refreshing truck pins (2-minute interval) - ensuring correct pin placement')
+      
+      // Refresh truck pins with current date
+      createMapPins(selectedDate, dateRange || undefined)
+    }
+
+    // Set up 2-minute interval for truck pin refresh
+    const truckRefreshInterval = setInterval(refreshTruckPins, 120000) // 2 minutes = 120000ms
+    
+    return () => clearInterval(truckRefreshInterval)
+  }, [initialized, selectedDate, dateRange, createMapPins])
 
   // Initialize with today's date (always start with current day)
   useEffect(() => {

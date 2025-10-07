@@ -7,6 +7,43 @@ interface GeocodingResult {
 // Cache for geocoded locations to reduce API calls
 const geocodeCache = new Map<string, GeocodingResult>()
 
+// City name normalization mapping for common variations
+const cityNameVariations: Record<string, Record<string, string>> = {
+  'GA': {
+    'La Grange': 'LaGrange',
+    'LaGrange': 'LaGrange',
+    'Lagrange': 'LaGrange'
+  },
+  'KY': {
+    'La Grange': 'La Grange',
+    'LaGrange': 'La Grange',
+    'Lagrange': 'La Grange'
+  },
+  'TX': {
+    'La Grange': 'La Grange',
+    'LaGrange': 'La Grange',
+    'Lagrange': 'La Grange'
+  },
+  'IL': {
+    'La Grange': 'La Grange',
+    'LaGrange': 'La Grange',
+    'Lagrange': 'La Grange'
+  }
+}
+
+// Function to normalize city names based on state
+function normalizeCityName(city: string, state: string): string {
+  const stateVariations = cityNameVariations[state.toUpperCase()]
+  if (stateVariations) {
+    const normalized = stateVariations[city.trim()]
+    if (normalized) {
+      console.log(`🔄 Normalizing city name: "${city}" → "${normalized}" for state ${state}`)
+      return normalized
+    }
+  }
+  return city.trim()
+}
+
 export async function geocodeAddress(city: string, state: string): Promise<GeocodingResult | null> {
   const cacheKey = `${city}, ${state}`.toLowerCase()
   
@@ -16,34 +53,74 @@ export async function geocodeAddress(city: string, state: string): Promise<Geoco
   }
 
   try {
-    // Use our server-side proxy for geocoding
-    const query = encodeURIComponent(`${city}, ${state}, USA`)
-    const response = await fetch(
-      `/api/mapbox-proxy?query=${query}&type=geocoding`
-    )
-
-    if (!response.ok) {
-      console.warn('⚠️ Geocoding failed for:', cacheKey)
-      return null
-    }
-
-    const data = await response.json()
+    // Clean and normalize city and state names
+    const cleanState = state.trim().toUpperCase()
+    const cleanCity = normalizeCityName(city, cleanState).replace(/\s+/g, ' ')
     
-    if (data.features && data.features.length > 0) {
-      const feature = data.features[0]
-      const result: GeocodingResult = {
-        latitude: feature.center[1],
-        longitude: feature.center[0],
-        formattedAddress: feature.place_name
+    // Try multiple query formats to improve accuracy
+    const originalCity = city.trim().replace(/\s+/g, ' ')
+    const queries = [
+      // Format 1: Normalized City, State, USA (most specific)
+      `${cleanCity}, ${cleanState}, USA`,
+      // Format 2: Normalized City, State (without USA)
+      `${cleanCity}, ${cleanState}`,
+      // Format 3: Original City, State, USA (fallback)
+      `${originalCity}, ${cleanState}, USA`,
+      // Format 4: Original City, State (fallback)
+      `${originalCity}, ${cleanState}`,
+      // Format 5: Normalized City, State, United States
+      `${cleanCity}, ${cleanState}, United States`
+    ]
+
+    for (const query of queries) {
+      const response = await fetch(
+        `/api/mapbox-proxy?query=${encodeURIComponent(query)}&type=geocoding&state=${encodeURIComponent(cleanState)}`
+      )
+
+      if (!response.ok) {
+        console.warn(`⚠️ Geocoding failed for query "${query}":`, response.status)
+        continue
       }
+
+      const data = await response.json()
       
-      // Cache the result
-      geocodeCache.set(cacheKey, result)
-      
-      return result
+      if (data.features && data.features.length > 0) {
+        // Find the best match that includes the correct state
+        let bestFeature = data.features[0]
+        
+        // Look for a feature that explicitly mentions the state
+        for (const feature of data.features) {
+          const placeName = feature.place_name?.toLowerCase() || ''
+          const context = feature.context || []
+          
+          // Check if this feature is in the correct state
+          const hasCorrectState = context.some((ctx: any) => 
+            ctx.id?.startsWith('region') && 
+            (ctx.text?.toUpperCase() === cleanState || 
+             ctx.short_code?.toUpperCase() === cleanState)
+          ) || placeName.includes(cleanState.toLowerCase())
+          
+          if (hasCorrectState) {
+            bestFeature = feature
+            break
+          }
+        }
+        
+        const result: GeocodingResult = {
+          latitude: bestFeature.center[1],
+          longitude: bestFeature.center[0],
+          formattedAddress: bestFeature.place_name
+        }
+        
+        // Cache the result
+        geocodeCache.set(cacheKey, result)
+        
+        console.log(`✅ Geocoded "${cleanCity}, ${cleanState}" to: ${result.formattedAddress}`)
+        return result
+      }
     }
     
-    console.warn('⚠️ No geocoding results for:', cacheKey)
+    console.warn('⚠️ No geocoding results for any query format:', cacheKey)
     return null
   } catch (error) {
     console.error('❌ Geocoding error for:', cacheKey, error)
@@ -108,4 +185,21 @@ export async function preCacheCommonCities(): Promise<void> {
   ]
   
   await geocodeBatch(commonCities)
-} 
+}
+
+// Clear geocoding cache (useful for testing or when data changes)
+export function clearGeocodeCache(): void {
+  geocodeCache.clear()
+  console.log('🗑️ Geocoding cache cleared')
+}
+
+// Get cache statistics for debugging
+export function getGeocodeCacheStats(): { size: number; keys: string[] } {
+  return {
+    size: geocodeCache.size,
+    keys: Array.from(geocodeCache.keys())
+  }
+}
+
+// Export the normalization function for use in other components
+export { normalizeCityName } 

@@ -83,6 +83,7 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
       
       let latitude: number
       let longitude: number
+      let displayCity = city
       
       // Use coordinates from first load if available
       if (firstLoad.FROMLAT && firstLoad.FROMLONG) {
@@ -117,6 +118,9 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
         if (longitude > 0) {
           longitude = -longitude;
         }
+        
+        // Use normalized city name from geocoding result
+        displayCity = geocodeResult.formattedAddress.split(',')[0].trim()
       }
       
       // Get the most common date from loads (or use first load's date)
@@ -127,12 +131,12 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
         type: 'load',
         latitude: latitude,
         longitude: longitude,
-        city: city,
+        city: displayCity,
         state: state,
         loads: locationLoads,
         loadCount: locationLoads.length,
         date: date,
-        title: `${city}, ${state} - ${locationLoads.length} load${locationLoads.length !== 1 ? 's' : ''}`,
+        title: `${displayCity}, ${state} - ${locationLoads.length} load${locationLoads.length !== 1 ? 's' : ''}`,
         data: firstLoad // Keep first load as primary data for compatibility
       }
       
