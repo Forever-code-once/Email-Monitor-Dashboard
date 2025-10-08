@@ -91,6 +91,40 @@ module.exports = {
       log_file: './logs/truck-websocket-combined.log',
       time: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    {
+      name: 'bid-websocket-server',
+      script: './server/bid-websocket-server.js',
+      cwd: process.cwd(),
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      env: {
+        NODE_ENV: 'production',
+        WEBSOCKET_PORT: 8082,
+        // AWS RDS MySQL Database Configuration
+        AWS_RDS_HOST: 'email-monitor-db.ctljjcc4qcdj.us-east-1.rds.amazonaws.com',
+        AWS_RDS_DATABASE: 'email_monitor',
+        AWS_RDS_USER: 'admin',
+        AWS_RDS_PASSWORD: 'bGp3+00RQ',
+        AWS_RDS_PORT: '3306'
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        WEBSOCKET_PORT: 8082,
+        // AWS RDS MySQL Database Configuration
+        AWS_RDS_HOST: 'email-monitor-db.ctljjcc4qcdj.us-east-1.rds.amazonaws.com',
+        AWS_RDS_DATABASE: 'email_monitor',
+        AWS_RDS_USER: 'admin',
+        AWS_RDS_PASSWORD: 'bGp3+00RQ',
+        AWS_RDS_PORT: '3306'
+      },
+      error_file: './logs/bid-websocket-error.log',
+      out_file: './logs/bid-websocket-out.log',
+      log_file: './logs/bid-websocket-combined.log',
+      time: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
   ]
 };

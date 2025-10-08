@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
+import { notifyWebSocketClients } from '@/lib/websocket'
 
 // Database configuration
 const dbConfig = {
@@ -47,6 +48,18 @@ export async function DELETE(
       await connection.execute(`
         DELETE FROM bid_requests WHERE id = ?
       `, [id])
+      
+      // Notify WebSocket clients about bid request deletion
+      console.log('🔔 Delete API: Sending WebSocket notification for bid deletion', { id: parseInt(id) })
+      try {
+        await notifyWebSocketClients('BID_REQUEST_DELETED', {
+          id: parseInt(id),
+          deletedAt: new Date().toISOString()
+        })
+        console.log('✅ Delete API: WebSocket notification sent successfully')
+      } catch (error) {
+        console.error('❌ Delete API: Failed to send WebSocket notification', error)
+      }
       
       return NextResponse.json({
         success: true,

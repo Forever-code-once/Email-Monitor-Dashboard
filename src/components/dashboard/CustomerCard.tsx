@@ -21,6 +21,7 @@ import { Delete, LocationOn, Event, Email } from '@mui/icons-material'
 import { CustomerCard as CustomerCardType } from '@/types'
 import { formatDate } from '@/lib/emailParser'
 import { useState, useCallback } from 'react'
+import { normalizeCityName } from '@/lib/geocoding'
 
 interface CustomerCardProps {
   customer: CustomerCardType
@@ -182,7 +183,7 @@ export function CustomerCard({
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <LocationOn sx={{ fontSize: 14 }} />
                           <Typography variant="body2" fontWeight="medium">
-                            {truck.city}, {truck.state}
+                            {normalizeCityName(truck.city, truck.state)}, {truck.state}
                           </Typography>
                         </Box>
                       }

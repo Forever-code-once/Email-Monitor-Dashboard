@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Box, Typography, Alert, CircularProgress, useTheme } from '@mui/material'
 import { useIsAuthenticated, useMsal } from '@azure/msal-react'
 import { BidRequestFormSidebar } from '@/components/bid/BidRequestFormSidebar'
@@ -8,6 +8,7 @@ import { BidRequestItem } from '@/components/bid/BidRequestItem'
 import { LoginScreen } from '@/components/auth/LoginScreen'
 import { BidRequest } from '@/types/bid'
 import { useTheme as useCustomTheme } from '@/components/providers/ThemeProvider'
+import { EmailWebSocketClient } from '@/lib/websocket'
 
 export default function BidsPage() {
   const isAuthenticated = useIsAuthenticated()
@@ -16,6 +17,8 @@ export default function BidsPage() {
   const [forceLogin, setForceLogin] = useState(true)
   const [bidRequests, setBidRequests] = useState<BidRequest[]>([])
   const [error, setError] = useState<string>('')
+  const [wsConnected, setWsConnected] = useState(false)
+  const wsClientRef = useRef<EmailWebSocketClient | null>(null)
   const theme = useTheme()
   const { darkMode } = useCustomTheme()
 
@@ -38,18 +41,23 @@ export default function BidsPage() {
   // Delete bid request
   const deleteBidRequest = async (id: string) => {
     try {
+      console.log('🗑️ Bids page: Deleting bid request with ID:', id)
       const response = await fetch(`/api/bid-requests/${id}`, {
         method: 'DELETE',
       })
       
       const data = await response.json()
+      console.log('🗑️ Bids page: Delete response:', data)
       
       if (data.success) {
+        console.log('✅ Bids page: Bid deleted successfully, refreshing list')
         await fetchBidRequests() // Refresh the list
       } else {
+        console.error('❌ Bids page: Delete failed:', data.error)
         setError(data.error || 'Failed to delete bid request')
       }
     } catch (err) {
+      console.error('❌ Bids page: Network error deleting bid request:', err)
       setError('Network error deleting bid request')
     }
   }
@@ -85,6 +93,49 @@ export default function BidsPage() {
       setForceLogin(false)
     }
   }, [instance])
+
+  // WebSocket setup for real-time bid request updates
+  useEffect(() => {
+    if (isAuthenticated && !forceLogin) {
+      const wsClient = new EmailWebSocketClient('wss://ai.conardlogistics.com/bid-ws')
+      wsClientRef.current = wsClient
+
+      wsClient.on('connection', (data: any) => {
+        setWsConnected(true)
+      })
+
+      wsClient.on('disconnection', (data: any) => {
+        setWsConnected(false)
+      })
+
+      wsClient.on('error', (error: any) => {
+        console.error('WebSocket error:', error)
+        setWsConnected(false)
+      })
+
+      // Bid request event handlers
+      wsClient.on('newBidRequest', (data: any) => {
+        console.log('New bid request received:', data)
+        fetchBidRequests() // Refresh the list
+      })
+
+      wsClient.on('bidRequestDeleted', (data: any) => {
+        console.log('Bid request deleted:', data)
+        fetchBidRequests() // Refresh the list
+      })
+
+      wsClient.on('bidRequestUpdated', (data: any) => {
+        console.log('Bid request updated:', data)
+        fetchBidRequests() // Refresh the list
+      })
+
+      wsClient.connect()
+
+      return () => {
+        wsClient.disconnect()
+      }
+    }
+  }, [isAuthenticated, forceLogin])
 
   // Show login screen if not authenticated
   if (!isAuthenticated || forceLogin) {

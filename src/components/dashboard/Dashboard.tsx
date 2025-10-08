@@ -279,6 +279,24 @@ export function Dashboard({ onWsConnectedChange }: DashboardProps) {
         setMapRefreshTrigger(prev => prev + 1)
       })
 
+      // Bid request event handlers
+      wsClient.on('newBidRequest', (data: any) => {
+        showNotification(`New bid request: ${data.customerName}`, 'info', 4000)
+        // Trigger map refresh to show new bid request
+        setMapRefreshTrigger(prev => prev + 1)
+      })
+
+      wsClient.on('bidRequestDeleted', (data: any) => {
+        showNotification('Bid request deleted', 'info', 3000)
+        // Trigger map refresh
+        setMapRefreshTrigger(prev => prev + 1)
+      })
+
+      wsClient.on('bidRequestUpdated', (data: any) => {
+        showNotification('Bid request updated', 'info', 3000)
+        // Trigger map refresh
+        setMapRefreshTrigger(prev => prev + 1)
+      })
 
       // Connect to WebSocket
       wsClient.connect()
