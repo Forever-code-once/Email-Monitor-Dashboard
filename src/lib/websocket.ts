@@ -1,7 +1,7 @@
 import { EmailMessage } from '@/types'
 
 export type WebSocketMessage = {
-  type: 'NEW_EMAIL' | 'EMAIL_UPDATE' | 'EMAIL_DELETED' | 'TRUCK_DATA_UPDATED' | 'LOAD_DATA_UPDATED' | 'CONNECTION_STATUS' | 'START_EMAIL_MONITORING' | 'STOP_EMAIL_MONITORING' | 'MAP_REFRESH_REQUIRED'
+  type: 'NEW_EMAIL' | 'EMAIL_UPDATE' | 'EMAIL_DELETED' | 'TRUCK_DATA_UPDATED' | 'LOAD_DATA_UPDATED' | 'CONNECTION_STATUS' | 'START_EMAIL_MONITORING' | 'STOP_EMAIL_MONITORING' | 'MAP_REFRESH_REQUIRED' | 'NEW_BID_REQUEST' | 'BID_REQUEST_DELETED' | 'BID_REQUEST_UPDATED' | 'MONITORING_STATUS' | 'SERVER_STATUS' | 'HEARTBEAT' | 'PONG' | 'TOKEN_CONFIRMED' | 'ERROR'
   data: any
 }
 
@@ -132,6 +132,18 @@ export class EmailWebSocketClient {
       case 'TOKEN_CONFIRMED':
         // Handle token confirmation
         this.emit('tokenConfirmed', message.data)
+        break
+        
+      case 'NEW_BID_REQUEST':
+        this.emit('newBidRequest', message.data)
+        break
+        
+      case 'BID_REQUEST_DELETED':
+        this.emit('bidRequestDeleted', message.data)
+        break
+        
+      case 'BID_REQUEST_UPDATED':
+        this.emit('bidRequestUpdated', message.data)
         break
         
       case 'ERROR':
@@ -298,5 +310,33 @@ export class EmailWebSocketClient {
       reconnectAttempts: this.reconnectAttempts,
       readyState: this.ws?.readyState
     }
+  }
+}
+
+// Function to notify WebSocket clients about bid request changes
+export async function notifyWebSocketClients(type: 'NEW_BID_REQUEST' | 'BID_REQUEST_DELETED' | 'BID_REQUEST_UPDATED', data: any) {
+  try {
+    // Use absolute URL for server-side API routes
+    const url = 'http://localhost:8082/notify'
+    console.log('📨 notifyWebSocketClients: Sending notification', { type, url, data })
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type,
+        data
+      })
+    })
+    
+    if (!response.ok) {
+      console.error('❌ notifyWebSocketClients: Failed to notify WebSocket clients:', response.statusText)
+    } else {
+      console.log('✅ notifyWebSocketClients: Notification sent successfully')
+    }
+  } catch (error) {
+    console.error('❌ notifyWebSocketClients: Error notifying WebSocket clients:', error)
   }
 } 

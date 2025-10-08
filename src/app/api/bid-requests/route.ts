@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
 import { normalizeCityName, getCityVariations, citiesMatch } from '@/lib/cityNormalization'
+import { notifyWebSocketClients } from '@/lib/websocket'
 
 // Database configuration
 const dbConfig = {
@@ -17,7 +18,9 @@ const pool = mysql.createPool(dbConfig)
 // GET - Fetch all active bid requests
 export async function GET() {
   try {
+    console.log('🔍 GET /api/bid-requests: Attempting database connection')
     const connection = await pool.getConnection()
+    console.log('✅ GET /api/bid-requests: Database connection successful')
     
     try {
       const [rows] = await connection.execute(`
@@ -121,6 +124,18 @@ export async function POST(request: NextRequest) {
       ])
       
       const insertResult = result as any
+      
+      // Notify WebSocket clients about new bid request
+      await notifyWebSocketClients('NEW_BID_REQUEST', {
+        id: insertResult.insertId,
+        customerName,
+        pickupCity,
+        destinationCity,
+        timerMinutes,
+        hasMatchingTruck,
+        radiusMiles,
+        createdAt: new Date().toISOString()
+      })
       
       return NextResponse.json({
         success: true,

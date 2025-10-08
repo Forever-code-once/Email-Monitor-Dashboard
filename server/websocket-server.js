@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const http = require('http');
 const { Client } = require('@microsoft/microsoft-graph-client');
 const { AuthenticationProvider } = require('@microsoft/microsoft-graph-client');
 require('isomorphic-fetch');
@@ -7,6 +8,7 @@ require('dotenv').config({ path: '.env.local' });
 class EmailMonitorServer {
   constructor() {
     this.wss = null;
+    this.httpServer = null;
     this.lastEmailCheck = new Date();
     this.knownEmails = new Set();
     this.clients = new Set();
@@ -19,14 +21,43 @@ class EmailMonitorServer {
 
   // Initialize WebSocket server
   start() {
-    this.wss = new WebSocket.Server({ 
-      port: this.PORT,
-      host: '0.0.0.0',
-      perMessageDeflate: false 
+    // Create HTTP server for notifications
+    this.httpServer = http.createServer((req, res) => {
+      if (req.method === 'POST' && req.url === '/notify') {
+        let body = '';
+        req.on('data', chunk => {
+          body += chunk.toString();
+        });
+        req.on('end', () => {
+          try {
+            const { type, data } = JSON.parse(body);
+            console.log(`📨 Received notification: Type=${type}, Data=`, data);
+            this.broadcastToAll({ type, data });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, message: 'Notification received' }));
+          } catch (error) {
+            console.error('❌ Error parsing notification body:', error);
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: 'Invalid JSON' }));
+          }
+        });
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
     });
 
-    console.log(`📧 Email WebSocket server started on port ${this.PORT}`);
-    console.log('🔍 Starting automatic email monitoring...');
+    // Start HTTP server
+    this.httpServer.listen(this.PORT, '0.0.0.0', () => {
+      console.log(`📧 Email WebSocket server started on port ${this.PORT}`);
+      console.log('🔍 Starting automatic email monitoring...');
+    });
+
+    // Create WebSocket server on the HTTP server
+    this.wss = new WebSocket.Server({ 
+      server: this.httpServer,
+      perMessageDeflate: false 
+    });
 
     // Start email monitoring automatically
     this.startEmailMonitoring();
@@ -450,6 +481,10 @@ class EmailMonitorServer {
     if (this.wss) {
       this.wss.close(() => {
       });
+    }
+    
+    if (this.httpServer) {
+      this.httpServer.close();
     }
   }
 }
