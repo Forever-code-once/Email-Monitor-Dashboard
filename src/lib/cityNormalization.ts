@@ -110,13 +110,82 @@ export function getCityVariations(cityName: string): string[] {
 export function citiesMatch(city1: string, city2: string): boolean {
   if (!city1 || !city2) return false
   
-  const variations1 = getCityVariations(city1)
-  const variations2 = getCityVariations(city2)
+  const normalize = (city: string) => {
+    let normalized = city.toLowerCase().trim()
+    
+    // Remove extra spaces and standardize spacing
+    normalized = normalized.replace(/\s+/g, ' ')
+    
+    // Handle common city name variations
+    const variations: { [key: string]: string } = {
+      // La Grange variations
+      'la grange': 'lagrange',
+      
+      // La Vergne variations  
+      'la vergne': 'lavergne',
+      
+      // Saint variations
+      'st.': 'saint',
+      'st ': 'saint ',
+      
+      // Mount variations
+      'mt.': 'mount',
+      'mt ': 'mount ',
+      
+      // Fort variations
+      'ft.': 'fort',
+      'ft ': 'fort ',
+      
+      // New variations
+      'n.': 'new',
+      'n ': 'new ',
+      
+      // Remove common suffixes that might cause issues
+      ' city': '',
+      ' town': '',
+      ' village': '',
+      ' borough': '',
+      ' township': '',
+      ' park': '', // Handle "St. Mary's Park" -> "St. Mary's"
+      ' park ': ' ',
+    }
+    
+    // Apply variations
+    for (const [pattern, replacement] of Object.entries(variations)) {
+      normalized = normalized.replace(new RegExp(pattern, 'gi'), replacement)
+    }
+    
+    // Remove all spaces and special characters except hyphens
+    normalized = normalized.replace(/[^a-z0-9-]/g, '')
+    
+    return normalized
+  }
+  
+  // Get multiple variations for better matching
+  const variations1 = [
+    city1.toLowerCase().trim(),
+    normalize(city1),
+    city1.toLowerCase().trim().replace(/[^a-z0-9]/g, ''), // Remove all punctuation
+    normalize(city1).replace(/[^a-z0-9]/g, '')
+  ].filter(v => v.length > 0)
+  
+  const variations2 = [
+    city2.toLowerCase().trim(),
+    normalize(city2),
+    city2.toLowerCase().trim().replace(/[^a-z0-9]/g, ''), // Remove all punctuation
+    normalize(city2).replace(/[^a-z0-9]/g, '')
+  ].filter(v => v.length > 0)
   
   // Check if any variation of city1 matches any variation of city2
-  return variations1.some(v1 => 
-    variations2.some(v2 => v1 === v2)
-  )
+  for (const v1 of variations1) {
+    for (const v2 of variations2) {
+      if (v1 === v2) {
+        return true
+      }
+    }
+  }
+  
+  return false
 }
 
 /**

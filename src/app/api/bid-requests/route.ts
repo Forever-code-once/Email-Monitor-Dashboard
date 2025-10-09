@@ -18,9 +18,7 @@ const pool = mysql.createPool(dbConfig)
 // GET - Fetch all active bid requests
 export async function GET() {
   try {
-    console.log('🔍 GET /api/bid-requests: Attempting database connection')
     const connection = await pool.getConnection()
-    console.log('✅ GET /api/bid-requests: Database connection successful')
     
     try {
       const [rows] = await connection.execute(`
@@ -59,7 +57,6 @@ export async function GET() {
       connection.release()
     }
   } catch (error) {
-    console.error('Error fetching bid requests:', error)
     return NextResponse.json({
       success: false,
       error: 'Failed to fetch bid requests'
@@ -146,7 +143,6 @@ export async function POST(request: NextRequest) {
       connection.release()
     }
   } catch (error) {
-    console.error('Error creating bid request:', error)
     return NextResponse.json({
       success: false,
       error: 'Failed to create bid request'
@@ -192,25 +188,40 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
       targetDate = `${parseInt(month)}/${parseInt(day)}`
     }
     
+    // Also create padded version for database compatibility
+    const paddedTargetDate = targetDate.replace(/(\d+)\/(\d+)/, (match, month, day) => {
+      return `${month.padStart(2, '0')}/${day.padStart(2, '0')}`
+    })
+    
     
     // Get all trucks for the selected date to check for city variations
     const [allTrucks] = await connection.execute(`
       SELECT city, state FROM truck_availability 
-      WHERE date = ? AND is_deleted = 0
-    `, [targetDate])
+      WHERE (date = ? OR date = ?) AND is_deleted = 0
+    `, [targetDate, paddedTargetDate])
     
     const trucks = allTrucks as Array<{city: string, state: string}>
     
     // Check for exact city matches first
     let exactMatches = 0
+    console.log(`🔍 Checking truck availability for: "${cityName}, ${stateName}" on ${targetDate}`)
+    console.log(`📊 Found ${trucks.length} trucks for this date`)
+    
     for (const truck of trucks) {
-      if (citiesMatch(cityName, truck.city)) {
+      const cityMatches = citiesMatch(cityName, truck.city)
+      console.log(`🏙️ Comparing "${cityName}" with "${truck.city}" (${truck.state}): ${cityMatches}`)
+      
+      if (cityMatches) {
         // If state is specified, check state match
         if (stateName && truck.state.toUpperCase() === stateName) {
+          console.log(`✅ State match: ${truck.state.toUpperCase()} === ${stateName}`)
           exactMatches++
         } else if (!stateName) {
           // No state specified, any state match is good
+          console.log(`✅ No state specified, accepting any state`)
           exactMatches++
+        } else {
+          console.log(`❌ State mismatch: ${truck.state.toUpperCase()} !== ${stateName}`)
         }
       }
     }
@@ -246,7 +257,6 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
     
     return false
   } catch (error) {
-    console.error('Error checking truck availability:', error)
     return false
   }
 }
