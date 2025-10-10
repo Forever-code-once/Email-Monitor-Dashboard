@@ -337,8 +337,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     if (!initialized) return
 
     const refreshLoadPins = () => {
-      console.log('🔄 Refreshing load pins (2-minute interval) - ensuring correct pin placement')
-      
       // Clear cache to force fresh data fetch
       setLoadsCache(null)
       localStorage.removeItem('loadsCache')
@@ -666,8 +664,6 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
     if (!initialized) return
 
     const refreshTruckPins = () => {
-      console.log('🔄 Refreshing truck pins (2-minute interval) - ensuring correct pin placement')
-      
       // Refresh truck pins with current date
       createMapPins(selectedDate, dateRange || undefined)
     }

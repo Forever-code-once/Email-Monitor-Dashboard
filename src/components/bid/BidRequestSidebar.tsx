@@ -138,17 +138,14 @@ export function BidRequestSidebar({ truckPins = [], onRefresh, className, select
   useEffect(() => {
     const hasActiveAccount = accounts.length > 0
     if (hasActiveAccount) {
-      console.log('🔗 BidRequestSidebar: Setting up WebSocket connection to bid-ws')
       const wsClient = new EmailWebSocketClient('wss://ai.conardlogistics.com/bid-ws')
       wsClientRef.current = wsClient
 
       wsClient.on('connection', (data: any) => {
-        console.log('✅ BidRequestSidebar: WebSocket connected', data)
         setWsConnected(true)
       })
 
       wsClient.on('disconnection', () => {
-        console.log('❌ BidRequestSidebar: WebSocket disconnected')
         setWsConnected(false)
       })
 
@@ -158,29 +155,24 @@ export function BidRequestSidebar({ truckPins = [], onRefresh, className, select
       })
 
       wsClient.on('newBidRequest', (data: any) => {
-        console.log('📨 BidRequestSidebar: Received newBidRequest event', data)
         fetchBidRequests() // Refresh the list when new bid is created
       })
 
       wsClient.on('bidRequestDeleted', (data: any) => {
-        console.log('🗑️ BidRequestSidebar: Received bidRequestDeleted event', data)
         fetchBidRequests() // Refresh the list when bid is deleted
       })
 
       wsClient.on('bidRequestUpdated', (data: any) => {
-        console.log('🔄 BidRequestSidebar: Received bidRequestUpdated event', data)
         fetchBidRequests() // Refresh the list when bid is updated
       })
 
       // Add debugging for unknown events
       wsClient.on('unknown', (data: any) => {
-        console.log('🔍 BidRequestSidebar: Received unknown event', data)
       })
 
       wsClient.connect()
 
       return () => {
-        console.log('🔌 BidRequestSidebar: Cleaning up WebSocket connection')
         if (wsClientRef.current) {
           wsClientRef.current.disconnect()
           wsClientRef.current = null

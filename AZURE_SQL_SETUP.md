@@ -180,10 +180,8 @@ const config = {
   options: { encrypt: true, trustServerCertificate: false }
 };
 sql.connect(config).then(() => {
-  console.log('Connected!');
   return sql.query('SELECT 1 as test');
 }).then(result => {
-  console.log(result.recordset);
   sql.close();
 }).catch(err => {
   console.error('Error:', err);

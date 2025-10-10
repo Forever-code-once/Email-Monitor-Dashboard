@@ -318,7 +318,6 @@ export async function notifyWebSocketClients(type: 'NEW_BID_REQUEST' | 'BID_REQU
   try {
     // Use absolute URL for server-side API routes
     const url = 'http://localhost:8082/notify'
-    console.log('📨 notifyWebSocketClients: Sending notification', { type, url, data })
     
     const response = await fetch(url, {
       method: 'POST',
@@ -333,8 +332,6 @@ export async function notifyWebSocketClients(type: 'NEW_BID_REQUEST' | 'BID_REQU
     
     if (!response.ok) {
       console.error('❌ notifyWebSocketClients: Failed to notify WebSocket clients:', response.statusText)
-    } else {
-      console.log('✅ notifyWebSocketClients: Notification sent successfully')
     }
   } catch (error) {
     console.error('❌ notifyWebSocketClients: Error notifying WebSocket clients:', error)

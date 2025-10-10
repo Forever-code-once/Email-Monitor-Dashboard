@@ -36,7 +36,6 @@ class BidWebSocketServer {
 
       // Set up WebSocket connection handling
       this.wss.on('connection', (ws, req) => {
-        console.log('🔗 New bid WebSocket client connected')
         this.clients.add(ws)
         
         // Send connection confirmation
@@ -57,13 +56,11 @@ class BidWebSocketServer {
 
         // Handle client disconnect
         ws.on('close', () => {
-          console.log('🔌 Bid WebSocket client disconnected')
           this.clients.delete(ws)
         })
 
         // Handle errors
         ws.on('error', (error) => {
-          console.error('❌ Bid WebSocket client error:', error)
           this.clients.delete(ws)
         })
       })
@@ -93,13 +90,6 @@ class BidWebSocketServer {
         }
       })
 
-      // Start the server
-      this.httpServer.listen(this.PORT, () => {
-        console.log(`🚀 Bid WebSocket server running on port ${this.PORT}`)
-        console.log(`📡 WebSocket endpoint: ws://localhost:${this.PORT}/bid-ws`)
-        console.log(`📨 Notification endpoint: http://localhost:${this.PORT}/notify`)
-      })
-
       // Start bid monitoring
       await this.startBidMonitoring()
 
@@ -110,7 +100,6 @@ class BidWebSocketServer {
   }
 
   async stop() {
-    console.log('🛑 Stopping bid WebSocket server...')
     
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval)
@@ -147,8 +136,6 @@ class BidWebSocketServer {
   }
 
   broadcastToAll(message) {
-    console.log(`📢 Broadcasting to ${this.clients.size} clients:`, message.type)
-    
     const messageStr = JSON.stringify(message)
     this.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
@@ -164,17 +151,14 @@ class BidWebSocketServer {
 
   async startBidMonitoring() {
     if (this.isMonitoring) {
-      console.log('⚠️ Bid monitoring already active')
       return
     }
 
     try {
       // Connect to database
       this.dbConnection = await mysql.createConnection(this.DB_CONFIG)
-      console.log('✅ Connected to database for bid monitoring')
       
       this.isMonitoring = true
-      console.log('✅ Bid monitoring started')
       
       // Check for bid changes every 5 seconds
       this.monitoringInterval = setInterval(() => {
@@ -197,8 +181,6 @@ class BidWebSocketServer {
       `)
       
       if (rows.length > 0) {
-        console.log(`📋 Found ${rows.length} new bid requests`)
-        
         for (const row of rows) {
           this.broadcastToAll({
             type: 'NEW_BID_REQUEST',
@@ -227,14 +209,12 @@ class BidWebSocketServer {
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\n🛑 Received SIGINT, shutting down gracefully...')
   const server = new BidWebSocketServer()
   await server.stop()
   process.exit(0)
 })
 
 process.on('SIGTERM', async () => {
-  console.log('\n🛑 Received SIGTERM, shutting down gracefully...')
   const server = new BidWebSocketServer()
   await server.stop()
   process.exit(0)

@@ -32,12 +32,10 @@ this.emailCheckInterval = setInterval(() => {
 // ✅ NEW: Event-driven approach
 startEmailMonitoring() {
   if (this.isMonitoring) {
-    console.log('⚠️ Email monitoring already active');
     return;
   }
   
   this.isMonitoring = true;
-  console.log('✅ Email monitoring started - event-driven mode');
   
   // Do an initial check
   this.checkForNewEmails();
@@ -67,14 +65,6 @@ async checkDatabaseUpdates() {
 
 #### **New Event Handlers:**
 ```typescript
-// Database update events
-wsClient.on('databaseUpdate', (data: any) => {
-  if (data.type === 'loads') {
-    console.log(`📦 Received ${data.count} loads update`);
-  } else if (data.type === 'trucks') {
-    console.log(`🚛 Received ${data.truckCount} trucks update`);
-  }
-});
 
 wsClient.on('databaseError', (data: any) => {
   console.error('❌ Database error via WebSocket:', data);

@@ -132,7 +132,6 @@ async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
           emailDate: new Date().toISOString()
         }
         
-        console.log(`🚛 Storing truck: ${truck.city}, ${truck.state} -> ${normalizedCity}, ${truck.state}`)
         await awsDatabaseQueries.saveTruckAvailability(truckRecord)
       }
     }

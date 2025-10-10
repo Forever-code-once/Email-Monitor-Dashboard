@@ -50,13 +50,11 @@ export async function DELETE(
       `, [id])
       
       // Notify WebSocket clients about bid request deletion
-      console.log('🔔 Delete API: Sending WebSocket notification for bid deletion', { id: parseInt(id) })
       try {
         await notifyWebSocketClients('BID_REQUEST_DELETED', {
           id: parseInt(id),
           deletedAt: new Date().toISOString()
         })
-        console.log('✅ Delete API: WebSocket notification sent successfully')
       } catch (error) {
         console.error('❌ Delete API: Failed to send WebSocket notification', error)
       }

@@ -91,9 +91,6 @@ export async function POST(request: NextRequest) {
     const connection = await pool.getConnection()
     
     try {
-      // Verify and correct place names using GPT
-      console.log(`🔍 Verifying place names for bid request: ${pickupCity} -> ${destinationCity}`)
-      
       let verifiedPickupCity, verifiedDestinationCity
       try {
         // Call verification API directly instead of HTTP request
@@ -131,21 +128,14 @@ export async function POST(request: NextRequest) {
         verifiedPickupCity = `${verifiedPickupCityName}, ${verifiedPickupStateName}`
         verifiedDestinationCity = `${verifiedDestinationCityName}, ${verifiedDestinationStateName}`
         
-        console.log(`✅ Place verification results:`)
-        console.log(`   Pickup: ${pickupCity} -> ${verifiedPickupCity}`)
-        console.log(`   Destination: ${destinationCity} -> ${verifiedDestinationCity}`)
       } catch (verificationError) {
-        console.log(`❌ Place verification failed:`, verificationError)
         // Fallback to original names
         verifiedPickupCity = pickupCity
         verifiedDestinationCity = destinationCity
-        console.log(`🔄 Using original names as fallback: ${verifiedPickupCity} -> ${verifiedDestinationCity}`)
       }
       
       // Check for matching trucks on the selected date using verified city names
-      console.log(`🚛 About to check truck availability for: ${verifiedPickupCity}`)
       const hasMatchingTruck = await checkTruckAvailability(verifiedPickupCity, radiusMiles, selectedDate, connection)
-      console.log(`🚛 Truck availability result: ${hasMatchingTruck}`)
       
       // Calculate expiration time
       const createdAt = new Date()
@@ -281,16 +271,12 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
         } else if (!stateName) {
           // No state specified, any state match is good
           exactMatches++
-        } else {
-          console.log(`❌ State mismatch: ${truck.state.toUpperCase()} !== ${stateName}`)
-        }
+        } 
       }
     }
     
     
-    console.log(`🎯 Final result: ${exactMatches} exact matches found`)
     if (exactMatches > 0) {
-      console.log(`✅ Returning true - trucks available`)
       return true
     }
     
@@ -318,10 +304,8 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
       }
     }
     
-    console.log(`❌ No matches found, returning false`)
     return false
   } catch (error) {
-    console.log(`💥 Error in checkTruckAvailability:`, error)
     return false
   }
 }

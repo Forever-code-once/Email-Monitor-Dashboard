@@ -41,16 +41,13 @@ export default function BidsPage() {
   // Delete bid request
   const deleteBidRequest = async (id: string) => {
     try {
-      console.log('🗑️ Bids page: Deleting bid request with ID:', id)
       const response = await fetch(`/api/bid-requests/${id}`, {
         method: 'DELETE',
       })
       
       const data = await response.json()
-      console.log('🗑️ Bids page: Delete response:', data)
       
       if (data.success) {
-        console.log('✅ Bids page: Bid deleted successfully, refreshing list')
         await fetchBidRequests() // Refresh the list
       } else {
         console.error('❌ Bids page: Delete failed:', data.error)
@@ -115,17 +112,14 @@ export default function BidsPage() {
 
       // Bid request event handlers
       wsClient.on('newBidRequest', (data: any) => {
-        console.log('New bid request received:', data)
         fetchBidRequests() // Refresh the list
       })
 
       wsClient.on('bidRequestDeleted', (data: any) => {
-        console.log('Bid request deleted:', data)
         fetchBidRequests() // Refresh the list
       })
 
       wsClient.on('bidRequestUpdated', (data: any) => {
-        console.log('Bid request updated:', data)
         fetchBidRequests() // Refresh the list
       })
 

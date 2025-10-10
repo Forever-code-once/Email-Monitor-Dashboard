@@ -37,7 +37,6 @@ function normalizeCityName(city: string, state: string): string {
   if (stateVariations) {
     const normalized = stateVariations[city.trim()]
     if (normalized) {
-      console.log(`🔄 Normalizing city name: "${city}" → "${normalized}" for state ${state}`)
       return normalized
     }
   }
@@ -115,7 +114,6 @@ export async function geocodeAddress(city: string, state: string): Promise<Geoco
         // Cache the result
         geocodeCache.set(cacheKey, result)
         
-        console.log(`✅ Geocoded "${cleanCity}, ${cleanState}" to: ${result.formattedAddress}`)
         return result
       }
     }
@@ -190,7 +188,6 @@ export async function preCacheCommonCities(): Promise<void> {
 // Clear geocoding cache (useful for testing or when data changes)
 export function clearGeocodeCache(): void {
   geocodeCache.clear()
-  console.log('🗑️ Geocoding cache cleared')
 }
 
 // Get cache statistics for debugging
