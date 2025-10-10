@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Box, Typography, Alert, CircularProgress, useTheme } from '@mui/material'
+import { Box, Typography, Alert, CircularProgress, useTheme, IconButton } from '@mui/material'
 import { useIsAuthenticated, useMsal } from '@azure/msal-react'
+import { Logout } from '@mui/icons-material'
 import { BidRequestFormSidebar } from '@/components/bid/BidRequestFormSidebar'
 import { BidRequestItem } from '@/components/bid/BidRequestItem'
 import { LoginScreen } from '@/components/auth/LoginScreen'
+import { DarkModeToggle } from '@/components/ui/DarkModeToggle'
 import { BidRequest } from '@/types/bid'
 import { useTheme as useCustomTheme } from '@/components/providers/ThemeProvider'
 import { EmailWebSocketClient } from '@/lib/websocket'
@@ -168,21 +170,47 @@ export default function BidsPage() {
           background: darkMode 
             ? `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`
             : 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
-          color: 'white'
+          color: 'white',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}>
-          <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
-            📋 Bid Requests
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ 
-              width: 8, 
-              height: 8, 
-              borderRadius: '50%', 
-              backgroundColor: bidRequests.length > 0 ? '#4caf50' : '#ff9800' 
-            }} />
-            <Typography variant="body1" sx={{ opacity: 0.9 }}>
-              {bidRequests.length} active request{bidRequests.length !== 1 ? 's' : ''}
+          <Box>
+            <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
+              📋 Bid Requests
             </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ 
+                width: 8, 
+                height: 8, 
+                borderRadius: '50%', 
+                backgroundColor: bidRequests.length > 0 ? '#4caf50' : '#ff9800' 
+              }} />
+              <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                {bidRequests.length} active request{bidRequests.length !== 1 ? 's' : ''}
+              </Typography>
+            </Box>
+          </Box>
+          
+          {/* Header Actions */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DarkModeToggle />
+            <IconButton 
+              color="inherit" 
+              onClick={() => {
+                instance.logoutRedirect({
+                  postLogoutRedirectUri: window.location.origin + '/bids'
+                })
+              }}
+              sx={{ 
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                }
+              }}
+            >
+              <Logout />
+            </IconButton>
           </Box>
         </Box>
 
