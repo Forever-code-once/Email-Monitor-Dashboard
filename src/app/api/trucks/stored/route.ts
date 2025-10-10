@@ -19,8 +19,15 @@ export async function GET(request: NextRequest) {
     if (date) {
       // Support both MM/DD and YYYY-MM-DD formats
       const targetDate = date.includes('/') ? date : convertToMMDD(date)
+      
+      // Create both padded and unpadded versions for comparison
+      const paddedTargetDate = targetDate.replace(/(\d+)\/(\d+)/, (match, month, day) => {
+        return `${month.padStart(2, '0')}/${day.padStart(2, '0')}`
+      })
+      
       filteredTrucks = trucksArray.filter((truck: any) => {
-        return truck.Date === targetDate || truck.date === targetDate
+        const truckDate = truck.Date || truck.date
+        return truckDate === targetDate || truckDate === paddedTargetDate
       })
     }
 

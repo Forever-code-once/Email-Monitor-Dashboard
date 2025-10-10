@@ -553,9 +553,54 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
       // Group trucks by location only (not by customer email)
       const locationGroups = new Map<string, TruckAvailability[]>()
       
+      // Function to normalize city names for consistent grouping
+      const normalizeCityForGrouping = (city: string, state: string): string => {
+        const normalizedCity = city.trim()
+        const normalizedState = state.trim().toUpperCase()
+        
+        // Handle La Grange/LaGrange variations
+        if (normalizedCity.toLowerCase().includes('la grange') || 
+            normalizedCity.toLowerCase().includes('lagrange')) {
+          
+          // State priority logic - if state is GA, use LaGrange, GA
+          if (normalizedState === 'GA') {
+            return 'lagrange, ga'
+          }
+          // If state is KY, use La Grange, KY
+          else if (normalizedState === 'KY') {
+            return 'la grange, ky'
+          }
+          // For other states, try to determine the correct spelling
+          else {
+            // Default to La Grange for most states
+            return 'la grange, ' + normalizedState.toLowerCase()
+          }
+        }
+        
+        // Handle other common city name variations
+        const cityVariations: { [key: string]: string } = {
+          'st marys': 'st. marys',
+          'st mary\'s': 'st. marys',
+          'st. marys': 'st. marys',
+          'st. mary\'s': 'st. marys',
+          'saint marys': 'st. marys',
+          'saint mary\'s': 'st. marys',
+        }
+
+        const lowerCity = normalizedCity.toLowerCase()
+        for (const [variation, correct] of Object.entries(cityVariations)) {
+          if (lowerCity.includes(variation)) {
+            return `${correct}, ${normalizedState.toLowerCase()}`
+          }
+        }
+        
+        // Return original city name if no variations found
+        return `${normalizedCity.toLowerCase()}, ${normalizedState.toLowerCase()}`
+      }
+      
       filteredTrucks.forEach(truck => {
-        // Group by location only - all customers at same location will be in one pin
-        const key = `${truck.city}, ${truck.state}`.toLowerCase()
+        // Group by normalized location - all customers at same location will be in one pin
+        const key = normalizeCityForGrouping(truck.city, truck.state)
         if (!locationGroups.has(key)) {
           locationGroups.set(key, [])
         }
@@ -564,10 +609,21 @@ export function MapView({ customerCards, onViewEmails, mapRefreshTrigger = 0, on
 
       // Geocode locations and create pins
       const pinPromises = Array.from(locationGroups.entries()).map(async ([locationKey, trucks]) => {
-        const [city, state] = locationKey.split(', ')
+        const [normalizedCity, state] = locationKey.split(', ')
         
-        // Geocode the location
-        const geocodeResult = await geocodeAddress(city, state)
+        // Use the most common city name from the trucks for geocoding (more likely to geocode correctly)
+        const cityCounts = new Map<string, number>()
+        trucks.forEach(truck => {
+          const count = cityCounts.get(truck.city) || 0
+          cityCounts.set(truck.city, count + 1)
+        })
+        
+        // Get the most common city name
+        const mostCommonCity = Array.from(cityCounts.entries())
+          .sort((a, b) => b[1] - a[1])[0][0]
+        
+        // Geocode the location using the most common city name
+        const geocodeResult = await geocodeAddress(mostCommonCity, state)
         
         if (geocodeResult) {
           // Use the normalized city name from geocoding result for display

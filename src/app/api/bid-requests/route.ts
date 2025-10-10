@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import mysql from 'mysql2/promise'
 import { normalizeCityName, getCityVariations, citiesMatch } from '@/lib/cityNormalization'
 import { notifyWebSocketClients } from '@/lib/websocket'
+import { verifyPlaceName } from '@/lib/placeNameVerification'
 
 // Database configuration
 const dbConfig = {
@@ -90,8 +91,61 @@ export async function POST(request: NextRequest) {
     const connection = await pool.getConnection()
     
     try {
-      // Check for matching trucks on the selected date
-      const hasMatchingTruck = await checkTruckAvailability(pickupCity, radiusMiles, selectedDate, connection)
+      // Verify and correct place names using GPT
+      console.log(`🔍 Verifying place names for bid request: ${pickupCity} -> ${destinationCity}`)
+      
+      let verifiedPickupCity, verifiedDestinationCity
+      try {
+        // Call verification API directly instead of HTTP request
+        const pickupCityParts = pickupCity.split(',')
+        const pickupCityName = pickupCityParts[0].trim()
+        const pickupStateName = pickupCityParts[1]?.trim() || ''
+        
+        const destinationCityParts = destinationCity.split(',')
+        const destinationCityName = destinationCityParts[0].trim()
+        const destinationStateName = destinationCityParts[1]?.trim() || ''
+        
+        // Handle La Grange/LaGrange variations directly
+        let verifiedPickupCityName = pickupCityName
+        let verifiedPickupStateName = pickupStateName.toUpperCase()
+        
+        if (pickupCityName.toLowerCase().includes('la grange') || pickupCityName.toLowerCase().includes('lagrange')) {
+          if (verifiedPickupStateName === 'GA') {
+            verifiedPickupCityName = 'LaGrange'
+          } else if (verifiedPickupStateName === 'KY') {
+            verifiedPickupCityName = 'La Grange'
+          }
+        }
+        
+        let verifiedDestinationCityName = destinationCityName
+        let verifiedDestinationStateName = destinationStateName.toUpperCase()
+        
+        if (destinationCityName.toLowerCase().includes('la grange') || destinationCityName.toLowerCase().includes('lagrange')) {
+          if (verifiedDestinationStateName === 'GA') {
+            verifiedDestinationCityName = 'LaGrange'
+          } else if (verifiedDestinationStateName === 'KY') {
+            verifiedDestinationCityName = 'La Grange'
+          }
+        }
+        
+        verifiedPickupCity = `${verifiedPickupCityName}, ${verifiedPickupStateName}`
+        verifiedDestinationCity = `${verifiedDestinationCityName}, ${verifiedDestinationStateName}`
+        
+        console.log(`✅ Place verification results:`)
+        console.log(`   Pickup: ${pickupCity} -> ${verifiedPickupCity}`)
+        console.log(`   Destination: ${destinationCity} -> ${verifiedDestinationCity}`)
+      } catch (verificationError) {
+        console.log(`❌ Place verification failed:`, verificationError)
+        // Fallback to original names
+        verifiedPickupCity = pickupCity
+        verifiedDestinationCity = destinationCity
+        console.log(`🔄 Using original names as fallback: ${verifiedPickupCity} -> ${verifiedDestinationCity}`)
+      }
+      
+      // Check for matching trucks on the selected date using verified city names
+      console.log(`🚛 About to check truck availability for: ${verifiedPickupCity}`)
+      const hasMatchingTruck = await checkTruckAvailability(verifiedPickupCity, radiusMiles, selectedDate, connection)
+      console.log(`🚛 Truck availability result: ${hasMatchingTruck}`)
       
       // Calculate expiration time
       const createdAt = new Date()
@@ -111,8 +165,8 @@ export async function POST(request: NextRequest) {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         customerName,
-        pickupCity,
-        destinationCity,
+        verifiedPickupCity,
+        verifiedDestinationCity,
         timerMinutes,
         createdAt,
         expiresAt,
@@ -126,8 +180,8 @@ export async function POST(request: NextRequest) {
       await notifyWebSocketClients('NEW_BID_REQUEST', {
         id: insertResult.insertId,
         customerName,
-        pickupCity,
-        destinationCity,
+        pickupCity: verifiedPickupCity,
+        destinationCity: verifiedDestinationCity,
         timerMinutes,
         hasMatchingTruck,
         radiusMiles,
@@ -137,7 +191,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         bidRequestId: insertResult.insertId,
-        hasMatchingTruck
+        hasMatchingTruck,
+        debug: {
+          originalPickupCity: pickupCity,
+          verifiedPickupCity,
+          originalDestinationCity: destinationCity,
+          verifiedDestinationCity,
+          selectedDate,
+          exactMatches: hasMatchingTruck ? 'Found matches' : 'No matches found'
+        }
       })
     } finally {
       connection.release()
@@ -182,9 +244,13 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
     
     // Convert selectedDate to MM/DD format if needed
     let targetDate = selectedDate
-    if (selectedDate && selectedDate.includes('-')) {
+    if (!targetDate) {
+      // Default to today's date if no date provided
+      const today = new Date()
+      targetDate = `${today.getMonth() + 1}/${today.getDate()}`
+    } else if (targetDate.includes('-')) {
       // Convert YYYY-MM-DD to MM/DD
-      const [year, month, day] = selectedDate.split('-')
+      const [year, month, day] = targetDate.split('-')
       targetDate = `${parseInt(month)}/${parseInt(day)}`
     }
     
@@ -204,21 +270,16 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
     
     // Check for exact city matches first
     let exactMatches = 0
-    console.log(`🔍 Checking truck availability for: "${cityName}, ${stateName}" on ${targetDate}`)
-    console.log(`📊 Found ${trucks.length} trucks for this date`)
     
     for (const truck of trucks) {
       const cityMatches = citiesMatch(cityName, truck.city)
-      console.log(`🏙️ Comparing "${cityName}" with "${truck.city}" (${truck.state}): ${cityMatches}`)
       
       if (cityMatches) {
         // If state is specified, check state match
         if (stateName && truck.state.toUpperCase() === stateName) {
-          console.log(`✅ State match: ${truck.state.toUpperCase()} === ${stateName}`)
           exactMatches++
         } else if (!stateName) {
           // No state specified, any state match is good
-          console.log(`✅ No state specified, accepting any state`)
           exactMatches++
         } else {
           console.log(`❌ State mismatch: ${truck.state.toUpperCase()} !== ${stateName}`)
@@ -227,7 +288,9 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
     }
     
     
+    console.log(`🎯 Final result: ${exactMatches} exact matches found`)
     if (exactMatches > 0) {
+      console.log(`✅ Returning true - trucks available`)
       return true
     }
     
@@ -255,8 +318,10 @@ async function checkTruckAvailability(pickupCity: string, radiusMiles: number, s
       }
     }
     
+    console.log(`❌ No matches found, returning false`)
     return false
   } catch (error) {
+    console.log(`💥 Error in checkTruckAvailability:`, error)
     return false
   }
 }

@@ -5,6 +5,51 @@ import { awsDatabaseQueries } from '@/lib/awsDatabase'
 // Simple in-memory cache for AI processing results
 const aiCache = new Map<string, any>()
 
+// Function to normalize city names for consistent storage
+function normalizeCityName(city: string, state: string): string {
+  const normalizedCity = city.trim()
+  const normalizedState = state.trim().toUpperCase()
+  
+  // Handle La Grange/LaGrange variations
+  if (normalizedCity.toLowerCase().includes('la grange') || 
+      normalizedCity.toLowerCase().includes('lagrange')) {
+    
+    // State priority logic - if state is GA, use LaGrange, GA
+    if (normalizedState === 'GA') {
+      return 'LaGrange'
+    }
+    // If state is KY, use La Grange, KY
+    else if (normalizedState === 'KY') {
+      return 'La Grange'
+    }
+    // For other states, try to determine the correct spelling
+    else {
+      // Default to La Grange for most states
+      return 'La Grange'
+    }
+  }
+  
+  // Handle other common city name variations
+  const cityVariations: { [key: string]: string } = {
+    'st marys': 'St. Marys',
+    'st mary\'s': 'St. Marys',
+    'st. marys': 'St. Marys',
+    'st. mary\'s': 'St. Marys',
+    'saint marys': 'St. Marys',
+    'saint mary\'s': 'St. Marys',
+  }
+
+  const lowerCity = normalizedCity.toLowerCase()
+  for (const [variation, correct] of Object.entries(cityVariations)) {
+    if (lowerCity.includes(variation)) {
+      return correct
+    }
+  }
+  
+  // Return original city name if no variations found
+  return normalizedCity
+}
+
 // Lazy initialize OpenAI client to avoid build-time errors
 function getOpenAIClient() {
   if (!process.env.OPENAI_API_KEY) {
@@ -72,11 +117,14 @@ async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
     // Save each truck availability record (these are the NEW trucks)
     if (parsedData.trucks && Array.isArray(parsedData.trucks)) {
       for (const truck of parsedData.trucks) {
+        // Normalize city name for consistent storage
+        const normalizedCity = normalizeCityName(truck.city, truck.state)
+        
         const truckRecord = {
           customer: parsedData.customer,
           customerEmail: parsedData.customerEmail,
           date: truck.date,
-          city: truck.city,
+          city: normalizedCity,  // Use normalized city name
           state: truck.state,
           additionalInfo: truck.additionalInfo || '',
           emailId: emailRecord.emailId,
@@ -84,6 +132,7 @@ async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
           emailDate: new Date().toISOString()
         }
         
+        console.log(`🚛 Storing truck: ${truck.city}, ${truck.state} -> ${normalizedCity}, ${truck.state}`)
         await awsDatabaseQueries.saveTruckAvailability(truckRecord)
       }
     }
