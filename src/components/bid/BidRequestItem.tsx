@@ -23,6 +23,7 @@ interface BidRequestItemProps {
 export function BidRequestItem({ bidRequest, onDelete, onEdit }: BidRequestItemProps) {
   const [timeRemaining, setTimeRemaining] = useState<string>('')
   const [isExpired, setIsExpired] = useState(false)
+  const [isExpiringSoon, setIsExpiringSoon] = useState(false)
   const theme = useTheme()
   const { darkMode } = useCustomTheme()
 
@@ -34,9 +35,14 @@ export function BidRequestItem({ bidRequest, onDelete, onEdit }: BidRequestItemP
       
       if (diffMs <= 0) {
         setIsExpired(true)
+        setIsExpiringSoon(false)
         setTimeRemaining('EXPIRED')
         return
       }
+      
+      // Check if expiring in less than 5 minutes (300,000 ms)
+      const fiveMinutesMs = 5 * 60 * 1000
+      setIsExpiringSoon(diffMs <= fiveMinutesMs)
       
       const hours = Math.floor(diffMs / (1000 * 60 * 60))
       const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
@@ -59,6 +65,7 @@ export function BidRequestItem({ bidRequest, onDelete, onEdit }: BidRequestItemP
 
   const getStatusColor = () => {
     if (isExpired) return 'error'
+    if (isExpiringSoon) return 'warning'
     if (timeRemaining.includes('s') && !timeRemaining.includes('m')) return 'warning'
     return 'default'
   }
@@ -126,23 +133,50 @@ export function BidRequestItem({ bidRequest, onDelete, onEdit }: BidRequestItemP
         borderRadius: 3,
         border: isExpired 
           ? '2px solid #f44336' 
-          : `1px solid ${darkMode ? theme.palette.divider : '#e3f2fd'}`,
+          : isExpiringSoon
+            ? '2px solid #ff9800'
+            : `1px solid ${darkMode ? theme.palette.divider : '#e3f2fd'}`,
         backgroundColor: isExpired 
           ? '#ffebee' 
-          : darkMode ? theme.palette.background.paper : 'white',
+          : isExpiringSoon
+            ? darkMode ? '#2d1b00' : '#fff3e0'
+            : darkMode ? theme.palette.background.paper : 'white',
         opacity: isExpired ? 0.7 : 1,
         boxShadow: isExpired 
           ? '0 2px 8px rgba(244, 67, 54, 0.2)' 
-          : darkMode 
-            ? '0 2px 8px rgba(0,0,0,0.3)' 
-            : '0 2px 8px rgba(0,0,0,0.08)',
+          : isExpiringSoon
+            ? '0 2px 8px rgba(255, 152, 0, 0.3)'
+            : darkMode 
+              ? '0 2px 8px rgba(0,0,0,0.3)' 
+              : '0 2px 8px rgba(0,0,0,0.08)',
         transition: 'all 0.2s ease-in-out',
+        // Pulse animation for expiring soon
+        ...(isExpiringSoon && {
+          animation: 'pulseWarning 2s ease-in-out infinite',
+          '@keyframes pulseWarning': {
+            '0%': {
+              boxShadow: '0 2px 8px rgba(255, 152, 0, 0.3)',
+              borderColor: '#ff9800'
+            },
+            '50%': {
+              boxShadow: '0 4px 16px rgba(255, 152, 0, 0.5)',
+              borderColor: '#ff9800',
+              transform: 'scale(1.02)'
+            },
+            '100%': {
+              boxShadow: '0 2px 8px rgba(255, 152, 0, 0.3)',
+              borderColor: '#ff9800'
+            }
+          }
+        }),
         '&:hover': {
           boxShadow: isExpired 
             ? '0 4px 12px rgba(244, 67, 54, 0.3)' 
-            : darkMode 
-              ? '0 4px 12px rgba(0,0,0,0.4)' 
-              : '0 4px 12px rgba(0,0,0,0.12)',
+            : isExpiringSoon
+              ? '0 6px 20px rgba(255, 152, 0, 0.4)'
+              : darkMode 
+                ? '0 4px 12px rgba(0,0,0,0.4)' 
+                : '0 4px 12px rgba(0,0,0,0.12)',
           transform: 'translateY(-1px)',
         }
       }}
