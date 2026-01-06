@@ -37,6 +37,8 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
   const { darkMode } = useTheme()
   const [visibleTrucks, setVisibleTrucks] = useState<TruckAvailability[]>([])
   const [checkedTrucks, setCheckedTrucks] = useState<Set<string>>(new Set())
+  const [weatherForecast, setWeatherForecast] = useState<any>(null)
+  const [loadingWeather, setLoadingWeather] = useState(false)
 
   // Load persistent state from localStorage
   useEffect(() => {
@@ -78,6 +80,25 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
         setVisibleTrucks(pin.trucks)
         setCheckedTrucks(new Set())
       }
+    }
+  }, [open, pin])
+
+  // Fetch weather forecast when dialog opens
+  useEffect(() => {
+    if (open && pin) {
+      setLoadingWeather(true)
+      fetch(`/api/weather-forecast?lat=${pin.latitude}&lon=${pin.longitude}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setWeatherForecast(data)
+          }
+          setLoadingWeather(false)
+        })
+        .catch(error => {
+          console.error('Error fetching weather:', error)
+          setLoadingWeather(false)
+        })
     }
   }, [open, pin])
 
@@ -284,6 +305,69 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
       </DialogTitle>
 
       <DialogContent sx={{ pt: 0 }}>
+        {/* Weather Forecast Section */}
+        {loadingWeather ? (
+          <Box sx={{ mb: 2, p: 2, bgcolor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', borderRadius: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Loading weather forecast...
+            </Typography>
+          </Box>
+        ) : weatherForecast && weatherForecast.forecasts && weatherForecast.forecasts.length > 0 ? (
+          <Box sx={{ mb: 2, p: 2, bgcolor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', borderRadius: 1 }}>
+            <Typography variant="subtitle2" fontWeight="medium" sx={{ mb: 1.5 }}>
+              🌦️ 4-Day Weather Forecast
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+              {weatherForecast.forecasts.slice(0, 4).map((day: any, index: number) => {
+                const getWeatherEmoji = (condition: string): string => {
+                  const emojiMap: Record<string, string> = {
+                    'Clear': '☀️',
+                    'Clouds': '☁️',
+                    'Rain': '🌧️',
+                    'Drizzle': '🌦️',
+                    'Thunderstorm': '⛈️',
+                    'Snow': '❄️',
+                    'Mist': '🌫️',
+                    'Fog': '🌫️',
+                    'Haze': '🌫️'
+                  }
+                  return emojiMap[condition] || '🌤️'
+                }
+
+                return (
+                  <Box 
+                    key={index} 
+                    sx={{ 
+                      textAlign: 'center',
+                      p: 1,
+                      bgcolor: darkMode ? 'rgba(255,255,255,0.05)' : 'white',
+                      borderRadius: 1,
+                      border: '1px solid',
+                      borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <Typography variant="caption" display="block" fontWeight="medium">
+                      {day.dayOfWeek}
+                    </Typography>
+                    <Typography variant="h5" sx={{ my: 0.5 }}>
+                      {getWeatherEmoji(day.condition)}
+                    </Typography>
+                    <Typography variant="body2" fontWeight="medium">
+                      <span style={{ color: '#d32f2f' }}>{day.tempHigh}°</span>
+                      {' / '}
+                      <span style={{ color: '#1976d2' }}>{day.tempLow}°</span>
+                    </Typography>
+                    {day.precipitation > 0 && (
+                      <Typography variant="caption" color="primary" display="block">
+                        {day.precipitation}mm
+                      </Typography>
+                    )}
+                  </Box>
+                )
+              })}
+            </Box>
+          </Box>
+        ) : null}
 
         <Box sx={{ mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>

@@ -215,7 +215,6 @@ export function DateNavigation({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
           <IconButton 
             onClick={handlePreviousDay}
-            disabled={isNaN(selectedDate.getTime()) || !isDateAvailable(new Date(selectedDate.getTime() - 24 * 60 * 60 * 1000))}
             size="small"
           >
             <ChevronLeft />
@@ -240,7 +239,6 @@ export function DateNavigation({
 
           <IconButton 
             onClick={handleNextDay}
-            disabled={isNaN(selectedDate.getTime()) || !isDateAvailable(new Date(selectedDate.getTime() + 24 * 60 * 60 * 1000))}
             size="small"
           >
             <ChevronRight />

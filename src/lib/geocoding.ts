@@ -84,37 +84,91 @@ export async function geocodeAddress(city: string, state: string): Promise<Geoco
       const data = await response.json()
       
       if (data.features && data.features.length > 0) {
-        // Find the best match that includes the correct state
-        let bestFeature = data.features[0]
+        // Filter out POIs and find the best city match with correct state
+        let bestFeature = null
+        let exactMatchFound = false
         
-        // Look for a feature that explicitly mentions the state
+        console.log(`🔍 Geocoding "${cleanCity}, ${cleanState}" - Found ${data.features.length} results`)
+        
         for (const feature of data.features) {
           const placeName = feature.place_name?.toLowerCase() || ''
+          const placeType = feature.place_type || []
           const context = feature.context || []
           
-          // Check if this feature is in the correct state
-          const hasCorrectState = context.some((ctx: any) => 
-            ctx.id?.startsWith('region') && 
-            (ctx.text?.toUpperCase() === cleanState || 
-             ctx.short_code?.toUpperCase() === cleanState)
-          ) || placeName.includes(cleanState.toLowerCase())
+          // CRITICAL: Only accept 'place' type (cities), reject POIs, neighborhoods, addresses
+          const isCity = placeType.includes('place')
+          if (!isCity) {
+            console.log(`  ⚠️ Skipping non-city result: ${feature.place_name} (type: ${placeType.join(', ')})`)
+            continue
+          }
           
-          if (hasCorrectState) {
+          // Extract state from context - MULTIPLE METHODS for reliability
+          const stateContext = context.find((ctx: any) => ctx.id?.startsWith('region'))
+          let featureState = stateContext?.short_code?.replace('US-', '').toUpperCase() || 
+                            stateContext?.text?.toUpperCase()
+          
+          // FALLBACK: Extract state from place_name if context fails
+          if (!featureState) {
+            const stateMatch = feature.place_name?.match(/,\s*([A-Z]{2})\s*,?\s*United States/i)
+            if (stateMatch) {
+              featureState = stateMatch[1].toUpperCase()
+              console.log(`  ℹ️ Extracted state from place_name: ${featureState}`)
+            }
+          }
+          
+          // CRITICAL: Verify state matches exactly (ALPHABETICAL BIAS FIX)
+          if (!featureState) {
+            console.log(`  ⚠️ Skipping result with no state: ${feature.place_name}`)
+            continue
+          }
+          
+          if (featureState !== cleanState) {
+            console.log(`  ⚠️ ALPHABETICAL BIAS DETECTED - Skipping wrong state: ${feature.place_name}`)
+            console.log(`     Expected: ${cleanState}, Got: ${featureState}`)
+            continue
+          }
+          
+          // Extract city name from the feature
+          const featureCityName = feature.text || ''
+          
+          // Verify city name matches (case-insensitive)
+          const cityMatches = featureCityName.toLowerCase() === cleanCity.toLowerCase() ||
+                             featureCityName.toLowerCase() === originalCity.toLowerCase()
+          
+          if (cityMatches) {
+            console.log(`  ✅ EXACT MATCH FOUND: ${feature.place_name} (City: ${featureCityName}, State: ${featureState})`)
             bestFeature = feature
-            break
+            exactMatchFound = true
+            break // Exact match found, use it immediately
+          }
+          
+          // If no exact match yet, use first valid city in correct state
+          if (!bestFeature) {
+            console.log(`  ✓ Candidate city in correct state: ${feature.place_name}`)
+            bestFeature = feature
           }
         }
         
-        const result: GeocodingResult = {
-          latitude: bestFeature.center[1],
-          longitude: bestFeature.center[0],
-          formattedAddress: bestFeature.place_name
+        // Final validation before returning
+        if (bestFeature && !exactMatchFound) {
+          console.log(`  ⚠️ Using fallback (no exact match): ${bestFeature.place_name}`)
         }
         
-        // Cache the result
-        geocodeCache.set(cacheKey, result)
-        
-        return result
+        // If we found a valid city feature
+        if (bestFeature) {
+          const result: GeocodingResult = {
+            latitude: bestFeature.center[1],
+            longitude: bestFeature.center[0],
+            formattedAddress: bestFeature.place_name
+          }
+          
+          // Cache the result
+          geocodeCache.set(cacheKey, result)
+          
+          return result
+        } else {
+          console.warn(`⚠️ No valid city found for: ${cleanCity}, ${cleanState}`)
+        }
       }
     }
     

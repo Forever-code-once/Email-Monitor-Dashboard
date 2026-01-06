@@ -7,7 +7,13 @@ import {
   CircularProgress,
   Alert,
   Typography,
+  IconButton,
+  Tooltip,
+  Paper,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material'
+import { Cloud, Satellite, Layers } from '@mui/icons-material'
 import { MapPin } from '@/types/map'
 import { LoadPin } from '@/lib/loadGeocoding'
 import { useTheme } from '@/components/providers/ThemeProvider'
@@ -57,6 +63,8 @@ export function TruckMap({
   const map = useRef<mapboxgl.Map | null>(null)
   const markers = useRef<Map<string, mapboxgl.Marker>>(new Map())
   const { darkMode } = useTheme()
+  const [weatherLayer, setWeatherLayer] = useState<'none' | 'precipitation'>('precipitation')
+  const weatherCache = useRef<Map<string, { data: any; timestamp: number }>>(new Map())
 
   // Debug: Log Mapbox token status
   useEffect(() => {
@@ -69,7 +77,7 @@ export function TruckMap({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: darkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
+      style: 'mapbox://styles/mapbox/satellite-streets-v12',
       center: [-98.5795, 39.8283], // Center of USA
       zoom: 4,
       maxBounds: [
@@ -105,9 +113,173 @@ export function TruckMap({
   useEffect(() => {
     if (!map.current) return
     
-    const newStyle = darkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11'
+    // Keep satellite style regardless of dark mode
+    const newStyle = 'mapbox://styles/mapbox/satellite-streets-v12'
     map.current.setStyle(newStyle)
+    
+    // Re-add weather layer after style change
+    if (weatherLayer !== 'none') {
+      map.current.once('style.load', () => {
+        addWeatherLayer(weatherLayer)
+      })
+    }
   }, [darkMode])
+
+  // Fetch weather forecast for a location
+  const fetchWeatherForecast = useCallback(async (lat: number, lon: number): Promise<any> => {
+    const cacheKey = `${lat.toFixed(2)},${lon.toFixed(2)}`
+    const cached = weatherCache.current.get(cacheKey)
+    
+    // Use cache if less than 2 hours old
+    if (cached && Date.now() - cached.timestamp < 2 * 60 * 60 * 1000) {
+      return cached.data
+    }
+
+    try {
+      const response = await fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`)
+      if (!response.ok) {
+        console.warn('⚠️ Weather forecast unavailable')
+        return null
+      }
+      
+      const data = await response.json()
+      
+      // Cache the result
+      weatherCache.current.set(cacheKey, {
+        data,
+        timestamp: Date.now()
+      })
+      
+      return data
+    } catch (error) {
+      console.error('❌ Error fetching weather forecast:', error)
+      return null
+    }
+  }, [])
+
+  // Format weather forecast HTML
+  const formatWeatherHTML = (forecast: any): string => {
+    if (!forecast || !forecast.forecasts || forecast.forecasts.length === 0) {
+      return '<div style="font-size: 11px; color: #999; margin-top: 4px;">Weather data unavailable</div>'
+    }
+
+    const getWeatherEmoji = (condition: string): string => {
+      const emojiMap: Record<string, string> = {
+        'Clear': '☀️',
+        'Clouds': '☁️',
+        'Rain': '🌧️',
+        'Drizzle': '🌦️',
+        'Thunderstorm': '⛈️',
+        'Snow': '❄️',
+        'Mist': '🌫️',
+        'Fog': '🌫️',
+        'Haze': '🌫️'
+      }
+      return emojiMap[condition] || '🌤️'
+    }
+
+    let html = '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">'
+    html += '<div style="font-size: 11px; font-weight: bold; color: #666; margin-bottom: 4px;">4-Day Forecast</div>'
+    
+    forecast.forecasts.slice(0, 4).forEach((day: any) => {
+      html += `
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin: 2px 0;">
+          <span style="width: 35px;">${day.dayOfWeek}</span>
+          <span style="width: 20px; text-align: center;">${getWeatherEmoji(day.condition)}</span>
+          <span style="width: 60px; text-align: right; color: #666;">
+            <span style="color: #d32f2f;">${day.tempHigh}°</span>/<span style="color: #1976d2;">${day.tempLow}°</span>
+          </span>
+          ${day.precipitation > 0 ? `<span style="width: 40px; text-align: right; color: #2196f3; font-size: 10px;">${day.precipitation}mm</span>` : ''}
+        </div>
+      `
+    })
+    
+    html += '</div>'
+    return html
+  }
+
+  // Fetch latest radar timestamp from RainViewer
+  const fetchRadarTimestamp = useCallback(async () => {
+    try {
+      const response = await fetch('https://api.rainviewer.com/public/weather-maps.json')
+      const data = await response.json()
+      
+      if (data && data.radar && data.radar.past && data.radar.past.length > 0) {
+        // Get the most recent timestamp
+        const latestTimestamp = data.radar.past[data.radar.past.length - 1].time
+        console.log('✅ Radar timestamp fetched:', latestTimestamp)
+        return latestTimestamp
+      }
+      
+      // Fallback to current time rounded to 10 minutes
+      return Math.floor(Date.now() / 1000 / 600) * 600
+    } catch (error) {
+      console.error('❌ Error fetching radar timestamp:', error)
+      // Fallback to current time rounded to 10 minutes
+      return Math.floor(Date.now() / 1000 / 600) * 600
+    }
+  }, [])
+
+  // Add weather layer function
+  const addWeatherLayer = useCallback(async (layerType: 'precipitation') => {
+    if (!map.current) return
+
+    try {
+      // Remove existing weather layers
+      if (map.current.getLayer('weather-layer')) {
+        map.current.removeLayer('weather-layer')
+      }
+      if (map.current.getSource('weather-source')) {
+        map.current.removeSource('weather-source')
+      }
+
+      const baseUrl = window.location.origin
+
+      // Use RainViewer for real-time precipitation radar
+      const timestamp = await fetchRadarTimestamp()
+      
+      map.current.addSource('weather-source', {
+        type: 'raster',
+        tiles: [
+          `${baseUrl}/api/weather-proxy?layer=precipitation&timestamp=${timestamp}&z={z}&x={x}&y={y}`
+        ],
+        tileSize: 256
+      })
+      
+      map.current.addLayer({
+        id: 'weather-layer',
+        type: 'raster',
+        source: 'weather-source',
+        paint: {
+          'raster-opacity': 0.85,
+          'raster-fade-duration': 0
+        }
+      })
+      
+      console.log(`✅ Weather radar added with timestamp: ${timestamp}`)
+    } catch (error) {
+      console.error('❌ Error adding weather layer:', error)
+      console.warn('⚠️ Weather data may be temporarily unavailable')
+    }
+  }, [fetchRadarTimestamp])
+
+  // Handle weather layer toggle
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return
+
+    // Remove existing weather layers
+    if (map.current.getLayer('weather-layer')) {
+      map.current.removeLayer('weather-layer')
+    }
+    if (map.current.getSource('weather-source')) {
+      map.current.removeSource('weather-source')
+    }
+
+    // Add new weather layer if selected
+    if (weatherLayer === 'precipitation') {
+      addWeatherLayer('precipitation')
+    }
+  }, [weatherLayer, addWeatherLayer])
 
   // Re-render markers when selection changes
   useEffect(() => {
@@ -145,20 +317,23 @@ export function TruckMap({
         </div>
       `
 
+      // Create unique ID for weather div
+      const weatherId = `weather-${pin.latitude.toFixed(4)}-${pin.longitude.toFixed(4)}-${Date.now()}`
+      
       const popup = new mapboxgl.Popup({
         offset: 25,
-        closeButton: false,
+        closeButton: true,
         className: 'custom-popup'
       }).setHTML(`
-        <div style="padding: 8px; min-width: 150px;">
-          <div style="font-weight: bold; margin-bottom: 4px;">
+        <div style="padding: 12px; min-width: 200px;">
+          <div style="font-weight: bold; margin-bottom: 6px; font-size: 14px;">
             ${normalizeCityName(pin.city, pin.state)}, ${pin.state}
           </div>
-          <div style="font-size: 12px; color: #666;">
+          <div style="font-size: 13px; color: #666; margin-bottom: 8px;">
             ${pin.truckCount} truck${pin.truckCount !== 1 ? 's' : ''} available
           </div>
-          <div style="font-size: 11px; color: #999; margin-top: 4px;">
-            Click for details
+          <div id="${weatherId}" style="min-height: 20px;">
+            <div style="font-size: 11px; color: #999; margin-top: 4px;">Loading weather...</div>
           </div>
         </div>
       `)
@@ -168,7 +343,28 @@ export function TruckMap({
         .setPopup(popup)
         .addTo(map.current!)
 
-      markerElement.addEventListener('click', () => {
+      // Load weather forecast when popup opens
+      popup.on('open', async () => {
+        const weatherDiv = document.getElementById(weatherId)
+        if (weatherDiv) {
+          console.log(`🌦️ Loading weather for ${pin.city}, ${pin.state}`)
+          const forecast = await fetchWeatherForecast(pin.latitude, pin.longitude)
+          if (forecast) {
+            weatherDiv.innerHTML = formatWeatherHTML(forecast)
+          } else {
+            weatherDiv.innerHTML = '<div style="font-size: 11px; color: #999;">Weather unavailable</div>'
+          }
+        }
+      })
+
+      markerElement.addEventListener('click', (e) => {
+        e.stopPropagation()
+        // Toggle popup on click
+        if (popup.isOpen()) {
+          popup.remove()
+        } else {
+          popup.addTo(map.current!)
+        }
         onPinClick(pin)
       })
 
@@ -323,7 +519,7 @@ export function TruckMap({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: 'rgba(255,255,255,0.8)',
+            backgroundColor: darkMode ? 'rgba(30,30,30,0.8)' : 'rgba(255,255,255,0.8)',
             zIndex: 1000,
           }}
         >
@@ -340,6 +536,111 @@ export function TruckMap({
           overflow: 'hidden'
         }} 
       />
+      
+      {/* Precipitation Legend */}
+      {weatherLayer === 'precipitation' && (
+        <Paper
+          elevation={3}
+          sx={{
+            position: 'absolute',
+            bottom: 40,
+            left: 20,
+            zIndex: 1000,
+            p: 1.5,
+            backgroundColor: darkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+            minWidth: 140,
+          }}
+        >
+          <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
+            Precipitation Radar
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3, fontSize: '11px' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 12, height: 12, bgcolor: '#00BFFF', borderRadius: 0.5 }} />
+              <Typography variant="caption">Light</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 12, height: 12, bgcolor: '#00FF00', borderRadius: 0.5 }} />
+              <Typography variant="caption">Moderate</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 12, height: 12, bgcolor: '#FFFF00', borderRadius: 0.5 }} />
+              <Typography variant="caption">Heavy</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ width: 12, height: 12, bgcolor: '#FF0000', borderRadius: 0.5 }} />
+              <Typography variant="caption">Severe</Typography>
+            </Box>
+          </Box>
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              display: 'block', 
+              mt: 1, 
+              pt: 1, 
+              borderTop: '1px solid',
+              borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+              fontSize: '10px',
+              fontStyle: 'italic',
+              color: 'text.secondary'
+            }}
+          >
+            Colors appear when rain is detected
+          </Typography>
+        </Paper>
+      )}
+      
+      {/* Weather Layer Toggle */}
+      <Paper
+        elevation={3}
+        sx={{
+          position: 'absolute',
+          top: 20,
+          left: 20,
+          zIndex: 1000,
+          backgroundColor: 'background.paper',
+          borderRadius: 2,
+          p: 1
+        }}
+      >
+        <ToggleButtonGroup
+          value={weatherLayer}
+          exclusive
+          onChange={(_, newLayer) => {
+            if (newLayer !== null) {
+              setWeatherLayer(newLayer)
+            }
+          }}
+          size="small"
+          orientation="vertical"
+        >
+          <ToggleButton value="none" aria-label="no weather">
+            <Tooltip title="Hide Weather Radar" placement="right">
+              <Layers fontSize="small" />
+            </Tooltip>
+          </ToggleButton>
+          <ToggleButton value="precipitation" aria-label="precipitation">
+            <Tooltip 
+              title={
+                <Box>
+                  <Typography variant="caption" display="block" fontWeight="bold">
+                    Weather Radar
+                  </Typography>
+                  <Box sx={{ mt: 0.5, fontSize: '10px' }}>
+                    <div>🔵 Light rain</div>
+                    <div>🟢 Moderate rain</div>
+                    <div>🟡 Heavy rain</div>
+                    <div>🔴 Severe storms</div>
+                  </Box>
+                </Box>
+              } 
+              placement="right"
+            >
+              <Cloud fontSize="small" />
+            </Tooltip>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Paper>
       
       {/* Distance Measurement Display */}
       {distanceMeasurement && (
@@ -434,13 +735,15 @@ export function TruckMap({
             left: '50%',
             transform: 'translate(-50%, -50%)',
             textAlign: 'center',
-            backgroundColor: 'rgba(255,255,255,0.9)',
-            padding: 2,
+            backgroundColor: darkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+            color: darkMode ? '#ffffff' : '#000000',
+            padding: 3,
             borderRadius: 2,
-            boxShadow: 2,
+            boxShadow: 3,
+            border: darkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)',
           }}
         >
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" color={darkMode ? 'inherit' : 'text.secondary'}>
             No trucks available for this date
           </Typography>
         </Box>

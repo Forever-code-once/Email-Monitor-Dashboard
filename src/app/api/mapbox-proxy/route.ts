@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       const params = new URLSearchParams({
         access_token: mapboxToken,
         country: 'US',
-        types: 'place,locality,neighborhood',
+        types: 'place', // ONLY cities - exclude POIs, neighborhoods, localities
         limit: '10', // Get more results to find the best match
         proximity: '-98.5795,39.8283' // Center of US for better relevance
       })

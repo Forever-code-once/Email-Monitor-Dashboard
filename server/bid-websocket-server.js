@@ -93,6 +93,13 @@ class BidWebSocketServer {
       // Start bid monitoring
       await this.startBidMonitoring()
 
+      // Start the HTTP server listening on the port
+      this.httpServer.listen(this.PORT, () => {
+        console.log(`🚀 Bid WebSocket server running on port ${this.PORT}`)
+        console.log(`📡 WebSocket endpoint: ws://localhost:${this.PORT}/bid-ws`)
+        console.log(`📨 Notification endpoint: http://localhost:${this.PORT}/notify`)
+      })
+
     } catch (error) {
       console.error('❌ Error starting bid WebSocket server:', error)
       process.exit(1)

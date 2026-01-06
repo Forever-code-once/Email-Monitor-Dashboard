@@ -90,6 +90,13 @@ class EmailMonitorServer {
       this.sendServerStatus();
     });
 
+    // Start the HTTP server listening on the port
+    this.httpServer.listen(this.PORT, () => {
+      console.log(`🚀 Email WebSocket server running on port ${this.PORT}`)
+      console.log(`📡 WebSocket endpoint: ws://localhost:${this.PORT}/ws`)
+      console.log(`📨 Notification endpoint: http://localhost:${this.PORT}/notify`)
+    })
+
   }
 
   // Handle messages from clients

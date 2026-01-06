@@ -124,21 +124,25 @@ export function citiesMatch(city1: string, city2: string): boolean {
       // La Vergne variations  
       'la vergne': 'lavergne',
       
-      // Saint variations
-      'st.': 'saint',
-      'st ': 'saint ',
+      // Saint variations (order matters - do longest first)
+      'saint ': 'saint',
+      'st. ': 'saint',
+      'st ': 'saint',
       
       // Mount variations
-      'mt.': 'mount',
-      'mt ': 'mount ',
+      'mount ': 'mount',
+      'mt. ': 'mount',
+      'mt ': 'mount',
       
       // Fort variations
-      'ft.': 'fort',
-      'ft ': 'fort ',
+      'fort ': 'fort',
+      'ft. ': 'fort',
+      'ft ': 'fort',
       
       // New variations
-      'n.': 'new',
-      'n ': 'new ',
+      'new ': 'new',
+      'n. ': 'new',
+      'n ': 'new',
       
       // Remove common suffixes that might cause issues
       ' city': '',
@@ -147,10 +151,9 @@ export function citiesMatch(city1: string, city2: string): boolean {
       ' borough': '',
       ' township': '',
       ' park': '', // Handle "St. Mary's Park" -> "St. Mary's"
-      ' park ': ' ',
     }
     
-    // Apply variations
+    // Apply variations (process in order)
     for (const [pattern, replacement] of Object.entries(variations)) {
       normalized = normalized.replace(new RegExp(pattern, 'gi'), replacement)
     }
@@ -159,6 +162,11 @@ export function citiesMatch(city1: string, city2: string): boolean {
     normalized = normalized.replace(/[^a-z0-9-]/g, '')
     
     return normalized
+  }
+  
+  // First try exact match (case-insensitive)
+  if (city1.toLowerCase().trim() === city2.toLowerCase().trim()) {
+    return true
   }
   
   // Get multiple variations for better matching
@@ -179,7 +187,7 @@ export function citiesMatch(city1: string, city2: string): boolean {
   // Check if any variation of city1 matches any variation of city2
   for (const v1 of variations1) {
     for (const v2 of variations2) {
-      if (v1 === v2) {
+      if (v1 === v2 && v1.length > 0) {
         return true
       }
     }
