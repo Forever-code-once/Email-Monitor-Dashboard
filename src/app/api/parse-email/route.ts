@@ -81,12 +81,35 @@ function truncateEmailContent(content: string, maxLength: number = 8000): string
 // Function to store parsed truck data to database
 async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
   try {
+    console.log(`\n🔍 [TRUCK DATA STORAGE] Starting for customer: ${parsedData.customerEmail}`)
     
-    // LATEST EMAIL ONLY LOGIC: Delete all previous data for this customer
-    // This function is only called for newer emails, so we can safely delete old data
-    await awsDatabaseQueries.deleteAllTrucksForCustomer(parsedData.customerEmail)
+    // LATEST EMAIL ONLY LOGIC: Check if this email is newer than existing data
+    const existingLatestEmailDate = await awsDatabaseQueries.getCustomerLatestEmail(parsedData.customerEmail)
+    const newEmailDate = emailData.receivedDateTime || new Date().toISOString()
     
-    await awsDatabaseQueries.deleteAllEmailsForCustomer(parsedData.customerEmail)
+    console.log(`📧 Customer ${parsedData.customerEmail}:`)
+    console.log(`   - Existing latest: ${existingLatestEmailDate}`)
+    console.log(`   - New email: ${newEmailDate}`)
+    console.log(`   - Email has ${parsedData.trucks?.length || 0} trucks`)
+    
+    // Only proceed if this is a new email or newer than existing
+    if (existingLatestEmailDate) {
+      const existingDate = new Date(existingLatestEmailDate)
+      const newDate = new Date(newEmailDate)
+      
+      if (newDate <= existingDate) {
+        console.log(`⏭️  Skipping older/duplicate email for ${parsedData.customerEmail}`)
+        return
+      }
+      
+      console.log(`🗑️  Deleting older data and keeping new email data`)
+      // Delete only older data
+      const trucksDeleted: any = await awsDatabaseQueries.deleteOlderTrucksForCustomer(parsedData.customerEmail, newEmailDate)
+      const emailsDeleted: any = await awsDatabaseQueries.deleteOlderEmailsForCustomer(parsedData.customerEmail, newEmailDate)
+      console.log(`   ✅ Deleted ${trucksDeleted?.affectedRows || 0} old trucks, ${emailsDeleted?.affectedRows || 0} old emails`)
+    } else {
+      console.log(`✨ First email from this customer`)
+    }
     
     // First, save the email record
     const emailRecord = {
@@ -95,7 +118,7 @@ async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
       fromEmail: emailData.from.address,
       fromName: emailData.from.name || emailData.from.address.split('@')[0],
       body: emailData.body,
-      receivedDateTime: new Date().toISOString(),
+      receivedDateTime: emailData.receivedDateTime || new Date().toISOString(),
       isForwarded: emailData.subject.toLowerCase().includes('fw:') || emailData.subject.toLowerCase().includes('fwd:'),
       originalSender: extractOriginalSender(emailData.body) || undefined
     }
@@ -129,15 +152,18 @@ async function storeTruckDataToDatabase(parsedData: any, emailData: any) {
           additionalInfo: truck.additionalInfo || '',
           emailId: emailRecord.emailId,
           emailSubject: emailData.subject,
-          emailDate: new Date().toISOString()
+          emailDate: emailData.receivedDateTime || new Date().toISOString()
         }
         
         await awsDatabaseQueries.saveTruckAvailability(truckRecord)
       }
     }
     
-  } catch (error) {
-    console.error('❌ Error storing truck data to database:', error)
+    console.log(`✅ [TRUCK DATA STORAGE] Completed for ${parsedData.customerEmail} - Saved ${parsedData.trucks?.length || 0} trucks\n`)
+    
+  } catch (error: any) {
+    console.error('❌ [TRUCK DATA STORAGE] Error storing truck data to database:', error)
+    console.error('❌ Error details:', error?.message, error?.stack)
     // Don't throw error - continue with email parsing even if database fails
   }
 }
@@ -162,7 +188,9 @@ function extractOriginalSender(body: string): string | null {
 
 export async function POST(request: NextRequest) {
   try {
-    const { subject, body, from } = await request.json()
+    const { subject, body, from, receivedDateTime } = await request.json()
+
+    console.log(`📧 Email received at: ${receivedDateTime}`)
 
     // Create cache key based on email content
     const cacheKey = `${from.address}-${subject}-${body.substring(0, 1000)}`
@@ -279,6 +307,32 @@ TABLE FORMAT:
 08/04/2025 | 53R | Mechanicsville | VA | MN
 08/07/2025 | 53R | Fort Mill | SC | MN"
 
+COMPACT TABLE FORMAT (Date | Type | Origin City, State | Destination States):
+"Jan 12 - Jan 12 | V | Three Rivers, MI | WI, MN
+Jan 12 - Jan 12 | V | Pottstown, PA | WI, MN
+Jan 12 - Jan 12 | V | Mount Vernon, OH | WI, MN
+Jan 12 - Jan 12 | V | Olathe, KS | WI, MN
+Jan 12 - Jan 12 | TL | Englewood, CO | WI, MN, IL, IA, MO, IN
+Jan 13 - Jan 13 | V | Thomasville, NC | WI, MN"
+
+INSTRUCTIONS FOR COMPACT TABLE FORMAT:
+- Column 1: Date or Date Range (convert to MM/DD format, e.g. "Jan 12" → "1/12", "Jan 13" → "1/13")
+- Column 2: Truck Type (V, TL, 53R, etc.) - add to additionalInfo as "Type: V" or "Type: TL"
+- Column 3: Origin Location (City, State) - THIS IS THE TRUCK LOCATION - extract city and state
+- Column 4: Destination States - add to additionalInfo as "→ WI, MN" or "→ WI, MN, IL, IA, MO, IN"
+- Extract the ORIGIN location (Column 3) as the truck location
+- Include truck type and destination states in additionalInfo
+
+EXAMPLE EXTRACTION FOR COMPACT TABLE FORMAT:
+Input: "Jan 12 - Jan 12 | V | Three Rivers, MI | WI, MN"
+Output: {"date": "1/12", "city": "Three Rivers", "state": "MI", "additionalInfo": "Type: V → WI, MN"}
+
+Input: "Jan 12 - Jan 12 | TL | Englewood, CO | WI, MN, IL, IA, MO, IN"
+Output: {"date": "1/12", "city": "Englewood", "state": "CO", "additionalInfo": "Type: TL → WI, MN, IL, IA, MO, IN"}
+
+Input: "Jan 13 - Jan 13 | V | Thomasville, NC | WI, MN"
+Output: {"date": "1/13", "city": "Thomasville", "state": "NC", "additionalInfo": "Type: V → WI, MN"}
+
 SPECIAL DATE/TIME FORMAT (9/08 AM, 9/09 AM - DAY/HOUR format):
 "LOCATION | DATE / TIME | DESIRED DESTINATION | TRAILER TYPE
 RANCHO CUCAMONGA, CA | 9/08 AM | Z0, Z1, Z2, Z3, Z4, Z5, Z6 | 53' DRY VAN
@@ -350,7 +404,18 @@ Output: 4 separate truck entries:
   ]
 }
 
-Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this exact format: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": [{"date": "MM/DD", "city": "City Name", "state": "ST", "additionalInfo": "optional details"}]}. IMPORTANT: Use MM/DD format for dates (e.g., "8/12" not "2024-08-12") to match the original email format. CRITICAL: For special DATE/TIME format like "9/08 AM" or "9/09 AM", interpret as DAY/TIME format where first number is day, second is hour, assume current month. "9/08 AM" = September 9th, 8:00 AM -> convert to "09/09". "9/09 AM" = September 9th, 9:00 AM -> convert to "09/09". "10/05 AM" = September 10th, 5:00 AM -> convert to "09/10". If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
+Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this exact format: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": [{"date": "MM/DD", "city": "City Name", "state": "ST", "additionalInfo": "optional details"}]}. 
+
+CRITICAL FORMAT INSTRUCTIONS:
+- Use MM/DD format for dates (e.g., "8/12" not "2024-08-12")
+- For dates like "Jan 12", convert to "1/12" (month/day without year)
+- For COMPACT TABLE FORMAT with columns (Date | Type | Origin | Destination):
+  * additionalInfo MUST include: "Type: [TYPE] → [DESTINATIONS]"
+  * Example: "Type: V → WI, MN" or "Type: TL → WI, MN, IL, IA, MO, IN"
+  * Extract ORIGIN location as the truck location, not destination
+- For special DATE/TIME format like "9/08 AM" or "9/09 AM", interpret as DAY/TIME format where first number is day, second is hour, assume current month. "9/08 AM" = September 9th, 8:00 AM -> convert to "09/09". "9/09 AM" = September 9th, 9:00 AM -> convert to "09/09". "10/05 AM" = September 10th, 5:00 AM -> convert to "09/10". 
+
+If no truck data found, return: {"customer": "Company Name", "customerEmail": "email@domain.com", "trucks": []}`
 
     const openai = getOpenAIClient()
     const completion = await openai.chat.completions.create({
@@ -503,7 +568,7 @@ Extract EVERY location as a separate truck entry. Return ONLY valid JSON in this
     }
 
     // Store parsed truck data in database
-    await storeTruckDataToDatabase(parsedData, { subject, body, from })
+    await storeTruckDataToDatabase(parsedData, { subject, body, from, receivedDateTime })
 
     // Cache the result
     aiCache.set(cacheKey, parsedData)

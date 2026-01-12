@@ -32,6 +32,7 @@ import { TruckDetailCardProps } from '@/types/map'
 import { TruckAvailability } from '@/types'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { normalizeCityName } from '@/lib/geocoding'
+import { getAllTruckTypes, getTruckTypeInfo } from '@/lib/truckTypeDetector'
 
 export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmails }: TruckDetailCardProps) {
   const { darkMode } = useTheme()
@@ -302,6 +303,23 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
              {customerGroups.reduce((total, group) => total + group.trucks.length, 0)} truck{customerGroups.reduce((total, group) => total + group.trucks.length, 0) !== 1 ? 's' : ''} available
            </Typography>
          </Box>
+         
+         {/* Truck Type Badges */}
+         <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+           {getAllTruckTypes(pin.trucks).map((typeInfo, index) => (
+             <Chip
+               key={index}
+               label={`${typeInfo.icon} ${typeInfo.label}`}
+               size="small"
+               sx={{
+                 backgroundColor: typeInfo.color,
+                 color: 'white',
+                 fontSize: '0.75rem',
+                 height: '24px'
+               }}
+             />
+           ))}
+         </Box>
       </DialogTitle>
 
       <DialogContent sx={{ pt: 0 }}>
@@ -444,14 +462,26 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
                        />
                      </ListItemIcon>
                      <ListItemText
-                       primary={
-                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                           <LocalShipping sx={{ color: 'primary.main', fontSize: 18 }} />
-                           <Typography variant="subtitle2" fontWeight="medium">
-                            {normalizeCityName(truck.city, truck.state)}, {truck.state}
-                           </Typography>
-                         </Box>
-                       }
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <Box sx={{ fontSize: 18 }}>
+                            {getTruckTypeInfo(truck.additionalInfo).icon}
+                          </Box>
+                          <Typography variant="subtitle2" fontWeight="medium">
+                           {normalizeCityName(truck.city, truck.state)}, {truck.state}
+                          </Typography>
+                          <Chip
+                            label={getTruckTypeInfo(truck.additionalInfo).label}
+                            size="small"
+                            sx={{
+                              backgroundColor: getTruckTypeInfo(truck.additionalInfo).color,
+                              color: 'white',
+                              fontSize: '0.7rem',
+                              height: '20px'
+                            }}
+                          />
+                        </Box>
+                      }
                        secondary={
                          <Box>
                            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>

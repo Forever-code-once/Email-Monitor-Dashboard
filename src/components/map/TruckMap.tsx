@@ -16,6 +16,7 @@ import {
 import { Cloud, Satellite, Layers } from '@mui/icons-material'
 import { MapPin } from '@/types/map'
 import { LoadPin } from '@/lib/loadGeocoding'
+import { detectDominantTruckType } from '@/lib/truckTypeDetector'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { normalizeCityName } from '@/lib/geocoding'
 
@@ -293,11 +294,14 @@ export function TruckMap({
     pins.forEach(pin => {
       const isSelected = selectedTruck && selectedTruck.id === pin.id
       
+      // Detect truck type from additionalInfo
+      const truckTypeInfo = detectDominantTruckType(pin.trucks)
+      
       const markerElement = document.createElement('div')
       markerElement.className = 'custom-marker truck-marker'
       markerElement.innerHTML = `
         <div style="
-          background: #1976d2;
+          background: ${truckTypeInfo.color};
           color: white;
           border-radius: 50%;
           width: 30px;
@@ -313,7 +317,7 @@ export function TruckMap({
           transition: transform 0.2s;
           ${isSelected ? 'transform: scale(1.3); z-index: 1000;' : ''}
         " onmouseover="this.style.transform='${isSelected ? 'scale(1.4)' : 'scale(1.1)'}'" onmouseout="this.style.transform='${isSelected ? 'scale(1.3)' : 'scale(1)'}'">
-          🚛
+          ${truckTypeInfo.icon}
         </div>
       `
 
@@ -329,8 +333,12 @@ export function TruckMap({
           <div style="font-weight: bold; margin-bottom: 6px; font-size: 14px;">
             ${normalizeCityName(pin.city, pin.state)}, ${pin.state}
           </div>
-          <div style="font-size: 13px; color: #666; margin-bottom: 8px;">
+          <div style="font-size: 13px; color: #666; margin-bottom: 4px;">
             ${pin.truckCount} truck${pin.truckCount !== 1 ? 's' : ''} available
+          </div>
+          <div style="font-size: 12px; color: ${truckTypeInfo.color}; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+            <span>${truckTypeInfo.icon}</span>
+            <span>${truckTypeInfo.label}</span>
           </div>
           <div id="${weatherId}" style="min-height: 20px;">
             <div style="font-size: 11px; color: #999; margin-top: 4px;">Loading weather...</div>
@@ -537,6 +545,101 @@ export function TruckMap({
         }} 
       />
       
+      {/* Truck Type Legend */}
+      <Paper
+        elevation={3}
+        sx={{
+          position: 'absolute',
+          bottom: 40,
+          left: 20,
+          zIndex: 1000,
+          p: 1.5,
+          backgroundColor: darkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+          minWidth: 160,
+        }}
+      >
+        <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 1 }}>
+          Truck Types
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ 
+              width: 24, 
+              height: 24, 
+              bgcolor: '#4CAF50', 
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px'
+            }}>
+              🚐
+            </Box>
+            <Typography variant="caption">Van / Dry Van</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ 
+              width: 24, 
+              height: 24, 
+              bgcolor: '#2196F3', 
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px'
+            }}>
+              ❄️
+            </Box>
+            <Typography variant="caption">Refrigerated</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ 
+              width: 24, 
+              height: 24, 
+              bgcolor: '#795548', 
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px'
+            }}>
+              📦
+            </Box>
+            <Typography variant="caption">Flatbed</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ 
+              width: 24, 
+              height: 24, 
+              bgcolor: '#FF6B00', 
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px'
+            }}>
+              ☢️
+            </Box>
+            <Typography variant="caption">Hazmat</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ 
+              width: 24, 
+              height: 24, 
+              bgcolor: '#1976d2', 
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px'
+            }}>
+              🚛
+            </Box>
+            <Typography variant="caption">Standard</Typography>
+          </Box>
+        </Box>
+      </Paper>
+
       {/* Precipitation Legend */}
       {weatherLayer === 'precipitation' && (
         <Paper
@@ -544,7 +647,7 @@ export function TruckMap({
           sx={{
             position: 'absolute',
             bottom: 40,
-            left: 20,
+            left: 200,
             zIndex: 1000,
             p: 1.5,
             backgroundColor: darkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',

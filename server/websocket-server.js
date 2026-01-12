@@ -220,7 +220,7 @@ class EmailMonitorServer {
         .filter(query)
         .orderby('receivedDateTime desc')
         .top(10)
-        .select('id,subject,body,receivedDateTime,from,isRead')
+        .select('id,subject,body,receivedDateTime,from,isRead,hasAttachments')
         .get();
 
       if (response.value && response.value.length > 0) {
@@ -234,6 +234,24 @@ class EmailMonitorServer {
           }
           
           this.knownEmails.add(emailId);
+          
+          // Fetch attachments if email has them
+          if (email.hasAttachments) {
+            try {
+              console.log(`📎 Fetching attachments for email: ${email.subject}`);
+              const attachmentsResponse = await graphClient
+                .api(`/users/${targetEmail}/messages/${emailId}/attachments`)
+                .get();
+              
+              email.attachments = attachmentsResponse.value || [];
+              console.log(`📎 Found ${email.attachments.length} attachments`);
+            } catch (attachError) {
+              console.error('❌ Error fetching attachments:', attachError);
+              email.attachments = [];
+            }
+          } else {
+            email.attachments = [];
+          }
           
           // Process with AI
           const aiProcessed = await this.processEmailWithAI(email);
@@ -256,7 +274,9 @@ class EmailMonitorServer {
                     address: email.from.emailAddress.address
                   }
                 },
-                isRead: email.isRead
+                isRead: email.isRead,
+                hasAttachments: email.hasAttachments || false,
+                attachments: email.attachments || []
               },
               aiProcessed: aiProcessed,
               timestamp: new Date().toISOString()
@@ -354,6 +374,7 @@ class EmailMonitorServer {
           subject: email.subject,
           body: email.body.content,
           from: email.from.emailAddress,
+          receivedDateTime: email.receivedDateTime, // CRITICAL: Pass receivedDateTime for proper date tracking
         }),
       });
 

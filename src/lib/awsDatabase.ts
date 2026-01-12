@@ -52,10 +52,19 @@ export const awsDatabaseQueries = {
     const connection = await getAwsConnection()
     
     try {
+      // Get only trucks from the latest email per customer
       const [rows] = await connection.execute(`
-        SELECT * FROM truck_availability 
-        WHERE is_deleted = 0 OR is_deleted IS NULL
-        ORDER BY created_at DESC
+        SELECT ta.* 
+        FROM truck_availability ta
+        INNER JOIN (
+          SELECT customer_email, MAX(email_date) as latest_email_date
+          FROM truck_availability
+          WHERE is_deleted = 0 OR is_deleted IS NULL
+          GROUP BY customer_email
+        ) latest ON ta.customer_email = latest.customer_email 
+                 AND ta.email_date = latest.latest_email_date
+        WHERE ta.is_deleted = 0 OR ta.is_deleted IS NULL
+        ORDER BY ta.created_at DESC
       `)
       return rows as any[]
     } finally {
@@ -262,17 +271,50 @@ export const awsDatabaseQueries = {
   },
 
   // Check if customer exists and get their latest email date
-  async getCustomerLatestEmail(customerEmail: string) {
+  // FIXED: Check truck_availability table directly instead of emails table
+  // because emails table may not have all records
+  async getCustomerLatestEmail(customerEmail: string): Promise<string | null> {
     const connection = await getAwsConnection()
     
     try {
       const [rows] = await connection.execute(`
-        SELECT MAX(received_date_time) as latest_email_date
-        FROM emails 
-        WHERE from_email = ?
+        SELECT MAX(email_date) as latest_email_date
+        FROM truck_availability
+        WHERE customer_email = ?
       `, [customerEmail])
       
-      return rows as any[]
+      const result = rows as any[]
+      return result[0]?.latest_email_date || null
+    } finally {
+      await connection.end()
+    }
+  },
+
+  // Delete older truck data for customer (keep only data from latest email)
+  async deleteOlderTrucksForCustomer(customerEmail: string, keepEmailDate: string) {
+    const connection = await getAwsConnection()
+    
+    try {
+      const [result] = await connection.execute(`
+        DELETE FROM truck_availability 
+        WHERE customer_email = ? AND email_date < ?
+      `, [customerEmail, keepEmailDate])
+      return result
+    } finally {
+      await connection.end()
+    }
+  },
+
+  // Delete older emails for customer (keep only latest)
+  async deleteOlderEmailsForCustomer(customerEmail: string, keepEmailDate: string) {
+    const connection = await getAwsConnection()
+    
+    try {
+      const [result] = await connection.execute(`
+        DELETE FROM emails 
+        WHERE from_email = ? AND received_date_time < ?
+      `, [customerEmail, keepEmailDate])
+      return result
     } finally {
       await connection.end()
     }
