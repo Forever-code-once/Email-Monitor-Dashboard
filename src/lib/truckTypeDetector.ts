@@ -37,9 +37,10 @@ export function detectTruckType(additionalInfo?: string): TruckType {
     return 'flatbed'
   }
   
-  // Check for van (dry van, box truck, etc.)
-  if (info.includes('van') || info.includes('dry van')) {
-    return 'van'
+  // Check for van (dry van, box truck, etc.) - treat as standard
+  if (info.includes('van') || info.includes('dry van') || info.includes('box truck') || 
+      info.includes('straight truck') || info.includes('straight box')) {
+    return 'default'
   }
   
   return 'default'
@@ -77,19 +78,12 @@ export function getTruckTypeInfo(additionalInfo?: string): TruckTypeInfo {
       }
     
     case 'van':
-      return {
-        type: 'van',
-        icon: '🚐', // Van icon
-        color: '#4CAF50', // Green
-        label: 'Van'
-      }
-    
     default:
       return {
         type: 'default',
         icon: '🚛', // Standard truck
         color: '#1976d2', // Blue
-        label: 'Truck'
+        label: 'Standard'
       }
   }
 }

@@ -13,7 +13,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material'
-import { Cloud, Satellite, Layers } from '@mui/icons-material'
+import { Cloud, Satellite, Layers, Close } from '@mui/icons-material'
 import { MapPin } from '@/types/map'
 import { LoadPin } from '@/lib/loadGeocoding'
 import { detectDominantTruckType } from '@/lib/truckTypeDetector'
@@ -66,6 +66,8 @@ export function TruckMap({
   const { darkMode } = useTheme()
   const [weatherLayer, setWeatherLayer] = useState<'none' | 'precipitation'>('precipitation')
   const weatherCache = useRef<Map<string, { data: any; timestamp: number }>>(new Map())
+  const [showTruckLegend, setShowTruckLegend] = useState(true)
+  const [showPrecipitationLegend, setShowPrecipitationLegend] = useState(true)
 
   // Debug: Log Mapbox token status
   useEffect(() => {
@@ -546,151 +548,192 @@ export function TruckMap({
       />
       
       {/* Truck Type Legend */}
-      <Paper
-        elevation={3}
-        sx={{
-          position: 'absolute',
-          bottom: 40,
-          left: 20,
-          zIndex: 1000,
-          p: 1.5,
-          backgroundColor: darkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
-          minWidth: 160,
-        }}
-      >
-        <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 1 }}>
-          Truck Types
-        </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ 
-              width: 24, 
-              height: 24, 
-              bgcolor: '#4CAF50', 
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px'
-            }}>
-              🚐
-            </Box>
-            <Typography variant="caption">Van / Dry Van</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ 
-              width: 24, 
-              height: 24, 
-              bgcolor: '#2196F3', 
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px'
-            }}>
-              ❄️
-            </Box>
-            <Typography variant="caption">Refrigerated</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ 
-              width: 24, 
-              height: 24, 
-              bgcolor: '#795548', 
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px'
-            }}>
-              📦
-            </Box>
-            <Typography variant="caption">Flatbed</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ 
-              width: 24, 
-              height: 24, 
-              bgcolor: '#FF6B00', 
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px'
-            }}>
-              ☢️
-            </Box>
-            <Typography variant="caption">Hazmat</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ 
-              width: 24, 
-              height: 24, 
-              bgcolor: '#1976d2', 
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px'
-            }}>
-              🚛
-            </Box>
-            <Typography variant="caption">Standard</Typography>
-          </Box>
-        </Box>
-      </Paper>
-
-      {/* Precipitation Legend */}
-      {weatherLayer === 'precipitation' && (
+      {showTruckLegend ? (
         <Paper
           elevation={3}
           sx={{
             position: 'absolute',
             bottom: 40,
-            left: 200,
+            left: 20,
             zIndex: 1000,
             p: 1.5,
             backgroundColor: darkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
-            minWidth: 140,
+            minWidth: 160,
           }}
         >
-          <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
-            Precipitation Radar
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3, fontSize: '11px' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, bgcolor: '#00BFFF', borderRadius: 0.5 }} />
-              <Typography variant="caption">Light</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Typography variant="caption" fontWeight="bold">
+              Truck Types
+            </Typography>
+            <IconButton 
+              size="small" 
+              onClick={() => setShowTruckLegend(false)}
+              sx={{ padding: 0, ml: 1 }}
+            >
+              <Close sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ 
+                width: 24, 
+                height: 24, 
+                bgcolor: '#2196F3', 
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px'
+              }}>
+                ❄️
+              </Box>
+              <Typography variant="caption">Refrigerated</Typography>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, bgcolor: '#00FF00', borderRadius: 0.5 }} />
-              <Typography variant="caption">Moderate</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ 
+                width: 24, 
+                height: 24, 
+                bgcolor: '#795548', 
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px'
+              }}>
+                📦
+              </Box>
+              <Typography variant="caption">Flatbed</Typography>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, bgcolor: '#FFFF00', borderRadius: 0.5 }} />
-              <Typography variant="caption">Heavy</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ 
+                width: 24, 
+                height: 24, 
+                bgcolor: '#FF6B00', 
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px'
+              }}>
+                ☢️
+              </Box>
+              <Typography variant="caption">Hazmat</Typography>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Box sx={{ width: 12, height: 12, bgcolor: '#FF0000', borderRadius: 0.5 }} />
-              <Typography variant="caption">Severe</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ 
+                width: 24, 
+                height: 24, 
+                bgcolor: '#1976d2', 
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px'
+              }}>
+                🚛
+              </Box>
+              <Typography variant="caption">Standard</Typography>
             </Box>
           </Box>
-          <Typography 
-            variant="caption" 
-            sx={{ 
-              display: 'block', 
-              mt: 1, 
-              pt: 1, 
-              borderTop: '1px solid',
-              borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-              fontSize: '10px',
-              fontStyle: 'italic',
-              color: 'text.secondary'
+        </Paper>
+      ) : (
+        <IconButton
+          onClick={() => setShowTruckLegend(true)}
+          sx={{
+            position: 'absolute',
+            bottom: 40,
+            left: 150,
+            zIndex: 1000,
+            backgroundColor: darkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+            '&:hover': {
+              backgroundColor: darkMode ? 'rgba(50,50,50,0.95)' : 'rgba(240,240,240,0.95)',
+            },
+            boxShadow: 3,
+          }}
+        >
+          🚛
+        </IconButton>
+      )}
+
+      {/* Precipitation Legend */}
+      {weatherLayer === 'precipitation' && (
+        showPrecipitationLegend ? (
+          <Paper
+            elevation={3}
+            sx={{
+              position: 'absolute',
+              bottom: 40,
+              left: 200,
+              zIndex: 1000,
+              p: 1.5,
+              backgroundColor: darkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+              minWidth: 140,
             }}
           >
-            Colors appear when rain is detected
-          </Typography>
-        </Paper>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+              <Typography variant="caption" fontWeight="bold">
+                Precipitation Radar
+              </Typography>
+              <IconButton 
+                size="small" 
+                onClick={() => setShowPrecipitationLegend(false)}
+                sx={{ padding: 0, ml: 1 }}
+              >
+                <Close sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3, fontSize: '11px' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 12, height: 12, bgcolor: '#00BFFF', borderRadius: 0.5 }} />
+                <Typography variant="caption">Light</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 12, height: 12, bgcolor: '#00FF00', borderRadius: 0.5 }} />
+                <Typography variant="caption">Moderate</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 12, height: 12, bgcolor: '#FFFF00', borderRadius: 0.5 }} />
+                <Typography variant="caption">Heavy</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 12, height: 12, bgcolor: '#FF0000', borderRadius: 0.5 }} />
+                <Typography variant="caption">Severe</Typography>
+              </Box>
+            </Box>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                display: 'block', 
+                mt: 1, 
+                pt: 1, 
+                borderTop: '1px solid',
+                borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                fontSize: '10px',
+                fontStyle: 'italic',
+                color: 'text.secondary'
+              }}
+            >
+              Colors appear when rain is detected
+            </Typography>
+          </Paper>
+        ) : (
+          <IconButton
+            onClick={() => setShowPrecipitationLegend(true)}
+            sx={{
+              position: 'absolute',
+              bottom: 40,
+              left: 200,
+              zIndex: 1000,
+              backgroundColor: darkMode ? 'rgba(30,30,30,0.95)' : 'rgba(255,255,255,0.95)',
+              '&:hover': {
+                backgroundColor: darkMode ? 'rgba(50,50,50,0.95)' : 'rgba(240,240,240,0.95)',
+              },
+              boxShadow: 3,
+            }}
+          >
+            🌧️
+          </IconButton>
+        )
       )}
       
       {/* Weather Layer Toggle */}

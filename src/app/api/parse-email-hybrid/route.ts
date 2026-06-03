@@ -76,6 +76,17 @@ INSTRUCTIONS:
    - Add truck type and destination states to additionalInfo
    - Example: "Jan 12 - Jan 12 | V | Three Rivers, MI | WI, MN" 
      → {"date": "1/12", "city": "Three Rivers", "state": "MI", "additionalInfo": "Type: V → WI, MN"}
+9. EMAIL-LEVEL TRUCK TYPE DETECTION (CRITICAL):
+   - Look for statements like "All are 53-foot swing door dry vans", "All trucks are refrigerated", etc.
+   - These describe ALL trucks in the email
+   - Add this description to EVERY truck's additionalInfo
+   - Examples:
+     * "All are 53-foot swing door dry vans" → Add "Van, Dry Van, 53-foot swing door" to each truck
+     * "All trucks are refrigerated" or "All are reefer" → Add "Refrigerated, Reefer" to each truck
+     * "All are flatbed trucks" → Add "Flatbed" to each truck
+     * "All hazmat certified" → Add "Hazmat" to each truck
+   - If there's a destination note like "Needing inbound into Memphis TN or Nashville TN area", add that too
+   - Combine with any existing additionalInfo from individual truck entries
 
 Return ONLY valid JSON in this exact format:
 {

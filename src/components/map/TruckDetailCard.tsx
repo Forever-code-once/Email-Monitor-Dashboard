@@ -462,14 +462,14 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
                        />
                      </ListItemIcon>
                      <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                       primary={
+                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                           <Box sx={{ fontSize: 18 }}>
                             {getTruckTypeInfo(truck.additionalInfo).icon}
                           </Box>
-                          <Typography variant="subtitle2" fontWeight="medium">
-                           {normalizeCityName(truck.city, truck.state)}, {truck.state}
-                          </Typography>
+                           <Typography variant="subtitle2" fontWeight="medium">
+                            {normalizeCityName(truck.city, truck.state)}, {truck.state}
+                           </Typography>
                           <Chip
                             label={getTruckTypeInfo(truck.additionalInfo).label}
                             size="small"
@@ -480,8 +480,8 @@ export function TruckDetailCard({ pin, onClose, open, onTruckDeleted, onViewEmai
                               height: '20px'
                             }}
                           />
-                        </Box>
-                      }
+                         </Box>
+                       }
                        secondary={
                          <Box>
                            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>

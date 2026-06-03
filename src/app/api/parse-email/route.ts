@@ -240,6 +240,16 @@ IMPORTANT CUSTOMER INFORMATION:
 - The customer is the company/person sending the email, not necessarily the contact person mentioned in the email body
 - CRITICAL: ALWAYS extract the original sender from the email body as the customer
 
+CRITICAL: EMAIL-LEVEL TRUCK TYPE DETECTION
+- Check the email for statements describing ALL trucks, such as:
+  * "All are 53-foot swing door dry vans"
+  * "All trucks are refrigerated" 
+  * "All are flatbed trucks"
+  * "All hazmat certified"
+  * "Needing inbound into the Memphis TN or Nashville TN area"
+- If found, add this description to EVERY truck's additionalInfo field
+- This is CRITICAL for proper truck type detection and icon display on the map
+
 Instructions:
 1. Extract ALL dates and locations for truck availability mentioned in the email
 2. Look for patterns like:
