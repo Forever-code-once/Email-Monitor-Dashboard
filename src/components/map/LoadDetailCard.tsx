@@ -32,8 +32,17 @@ import {
   Inventory,
 } from '@mui/icons-material'
 import { LoadData } from '@/types'
-import { formatLoadInfo } from '@/lib/loadGeocoding'
+import { formatLoadInfo, isLoadReserved, reservedByName } from '@/lib/loadGeocoding'
 import { useTheme } from '@/components/providers/ThemeProvider'
+
+const RESERVED_PINK = '#ec4899'
+
+/** "RESERVED LOAD BY {USER}" label for a reserved load (or null). */
+function reservedLabel(load: LoadData): string | null {
+  if (!isLoadReserved(load)) return null
+  const who = reservedByName(load)
+  return who ? `RESERVED LOAD BY ${who.toUpperCase()}` : 'RESERVED LOAD'
+}
 
 interface LoadDetailCardProps {
   load: LoadData | any // Can be single load or grouped load pin
@@ -50,6 +59,7 @@ export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardPro
   const loads = isGroupedPin ? load.loads : [load]
   const firstLoad = loads[0]
   const loadInfo = formatLoadInfo(firstLoad)
+  const reservedCount = loads.filter(isLoadReserved).length
 
   const handleExpandClick = () => {
     setExpanded(!expanded)
@@ -97,6 +107,13 @@ export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardPro
           <Typography variant="body2" color="text.secondary">
             {loads.length} load{loads.length !== 1 ? 's' : ''} available
           </Typography>
+          {reservedCount > 0 && (
+            <Chip
+              size="small"
+              label={`${reservedCount} reserved`}
+              sx={{ bgcolor: RESERVED_PINK, color: '#fff', fontWeight: 'bold', height: 20 }}
+            />
+          )}
         </Box>
       </DialogTitle>
 
@@ -156,17 +173,43 @@ export function LoadDetailCard({ load, onClose, open = true }: LoadDetailCardPro
               {/* Loads for this company */}
               {companyLoads.map((loadItem: LoadData, index: number) => {
                 const itemInfo = formatLoadInfo(loadItem)
+                const reserved = isLoadReserved(loadItem)
                 return (
-                  <ListItem key={`${loadItem.REF_NUMBER}-${index}`} sx={{ pl: 4, py: 1 }}>
+                  <ListItem
+                    key={`${loadItem.REF_NUMBER}-${index}`}
+                    sx={{
+                      pl: 4,
+                      py: 1,
+                      ...(reserved && {
+                        bgcolor: darkMode ? 'rgba(236,72,153,0.16)' : 'rgba(236,72,153,0.10)',
+                        borderLeft: `4px solid ${RESERVED_PINK}`,
+                      }),
+                    }}
+                  >
                     <ListItemIcon>
-                      <Inventory sx={{ color: 'text.secondary', fontSize: 16 }} />
+                      <Inventory sx={{ color: reserved ? RESERVED_PINK : 'text.secondary', fontSize: 16 }} />
                     </ListItemIcon>
                     <ListItemText
                       primary={
                         <Box>
-                          <Typography variant="body2" fontWeight="medium">
-                            Load #{itemInfo.refNumber}
-                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Typography variant="body2" fontWeight="medium">
+                              Load #{itemInfo.refNumber}
+                            </Typography>
+                            {reservedLabel(loadItem) && (
+                              <Chip
+                                size="small"
+                                label={reservedLabel(loadItem)}
+                                sx={{
+                                  bgcolor: RESERVED_PINK,
+                                  color: '#fff',
+                                  fontWeight: 'bold',
+                                  fontSize: '0.65rem',
+                                  height: 20,
+                                }}
+                              />
+                            )}
+                          </Box>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                             <LocationOn sx={{ fontSize: 14, color: 'text.secondary' }} />
                             <Typography variant="caption" color="text.secondary">

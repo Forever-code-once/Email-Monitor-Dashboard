@@ -81,6 +81,12 @@ export interface LoadData {
   dropoff_time?: string
   dispatcher_initials?: string
   notes?: string
+  // Reservation status from VLP avalload.RESERVED ('Y' = reserved). The
+  // reserving user is resolved via SIGNON (DISPATCHER_ID -> USERNAME).
+  reserved?: string
+  reserved_by?: string
+  reserved_by_initials?: string
+  RESERVED?: string
   FROMCITY?: string
   FROMSTATE?: string
   TOCITY?: string

@@ -285,23 +285,27 @@ export const databaseQueries = {
         stoplast.pu_drop_date1 as dropoff_date,
         stoplast.pu_drop_time1 as dropoff_time,
         avalload.dispatcher_id as dispatcher_initials,
+        avalload.RESERVED as reserved,
+        LTRIM(RTRIM(sgn.USERNAME)) as reserved_by,
+        LTRIM(RTRIM(avalload.dispatcher_id)) as reserved_by_initials,
         (STUFF((SELECT ' ' + cast([int_notes] as varchar(8000))
           FROM loadtrk ltrk
           WHERE (ltrk.ref_number = avalload.ref_number
           and cast([int_notes] as varchar(8000)) <> ''
-        ) 
+        )
         FOR XML PATH ('')), 1, 2, '')) AS notes
       FROM avalload
         LEFT JOIN trkstops stop1 ON stop1.ref_number = avalload.ref_number AND stop1.sequence_num = 1
-        LEFT JOIN trkstops stoplast ON stoplast.ref_number = avalload.ref_number 
+        LEFT JOIN trkstops stoplast ON stoplast.ref_number = avalload.ref_number
           AND stoplast.recnum = (SELECT MAX(recnum) FROM trkstops WHERE trkstops.ref_number = avalload.ref_number)
-      WHERE load_status = 'A' 
-        AND avalload.ACTUAL_NAME IS NOT NULL 
+        LEFT JOIN SIGNON sgn ON LTRIM(RTRIM(sgn.USER_ID)) = LTRIM(RTRIM(avalload.dispatcher_id))
+      WHERE load_status = 'A'
+        AND avalload.ACTUAL_NAME IS NOT NULL
         AND avalload.ACTUAL_NAME != ''
         AND avalload.ref_number IS NOT NULL
       ORDER BY depart_date, stop1.pu_drop_date1, stop1.pu_drop_time1
     `
-    
+
     return executeQuery(query)
   },
 
@@ -317,17 +321,21 @@ export const databaseQueries = {
         stoplast.pu_drop_date1 as dropoff_date,
         stoplast.pu_drop_time1 as dropoff_time,
         avalload.dispatcher_id as dispatcher_initials,
+        avalload.RESERVED as reserved,
+        LTRIM(RTRIM(sgn.USERNAME)) as reserved_by,
+        LTRIM(RTRIM(avalload.dispatcher_id)) as reserved_by_initials,
         (STUFF((SELECT ' ' + cast([int_notes] as varchar(8000))
           FROM loadtrk ltrk
           WHERE (ltrk.ref_number = avalload.ref_number
           and cast([int_notes] as varchar(8000)) <> ''
-        ) 
+        )
         FOR XML PATH ('')), 1, 2, '')) AS notes
       FROM avalload
         LEFT JOIN trkstops stop1 ON stop1.ref_number = avalload.ref_number AND stop1.sequence_num = 1
-        LEFT JOIN trkstops stoplast ON stoplast.ref_number = avalload.ref_number 
+        LEFT JOIN trkstops stoplast ON stoplast.ref_number = avalload.ref_number
           AND stoplast.recnum = (SELECT MAX(recnum) FROM trkstops WHERE trkstops.ref_number = avalload.ref_number)
-      WHERE load_status = 'A' 
+        LEFT JOIN SIGNON sgn ON LTRIM(RTRIM(sgn.USER_ID)) = LTRIM(RTRIM(avalload.dispatcher_id))
+      WHERE load_status = 'A'
         AND avalload.ACTUAL_NAME LIKE @companyName
         AND avalload.ACTUAL_NAME IS NOT NULL 
         AND avalload.ACTUAL_NAME != ''

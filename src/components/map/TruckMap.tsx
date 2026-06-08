@@ -201,28 +201,6 @@ export function TruckMap({
     return html
   }
 
-  // Fetch latest radar timestamp from RainViewer
-  const fetchRadarTimestamp = useCallback(async () => {
-    try {
-      const response = await fetch('https://api.rainviewer.com/public/weather-maps.json')
-      const data = await response.json()
-      
-      if (data && data.radar && data.radar.past && data.radar.past.length > 0) {
-        // Get the most recent timestamp
-        const latestTimestamp = data.radar.past[data.radar.past.length - 1].time
-        console.log('✅ Radar timestamp fetched:', latestTimestamp)
-        return latestTimestamp
-      }
-      
-      // Fallback to current time rounded to 10 minutes
-      return Math.floor(Date.now() / 1000 / 600) * 600
-    } catch (error) {
-      console.error('❌ Error fetching radar timestamp:', error)
-      // Fallback to current time rounded to 10 minutes
-      return Math.floor(Date.now() / 1000 / 600) * 600
-    }
-  }, [])
-
   // Add weather layer function
   const addWeatherLayer = useCallback(async (layerType: 'precipitation') => {
     if (!map.current) return
@@ -238,17 +216,18 @@ export function TruckMap({
 
       const baseUrl = window.location.origin
 
-      // Use RainViewer for real-time precipitation radar
-      const timestamp = await fetchRadarTimestamp()
-      
+      // OpenWeatherMap precipitation tiles (proxied to keep the API key
+      // server-side). OWM serves tiles at every zoom level, so there is no
+      // "Zoom Level Not Supported" placeholder and no zoom cap is needed.
       map.current.addSource('weather-source', {
         type: 'raster',
         tiles: [
-          `${baseUrl}/api/weather-proxy?layer=precipitation&timestamp=${timestamp}&z={z}&x={x}&y={y}`
+          `${baseUrl}/api/weather-proxy?layer=precipitation_new&z={z}&x={x}&y={y}`
         ],
-        tileSize: 256
+        tileSize: 256,
+        minzoom: 0,
       })
-      
+
       map.current.addLayer({
         id: 'weather-layer',
         type: 'raster',
@@ -258,13 +237,13 @@ export function TruckMap({
           'raster-fade-duration': 0
         }
       })
-      
-      console.log(`✅ Weather radar added with timestamp: ${timestamp}`)
+
+      console.log('✅ Weather precipitation layer added (OpenWeatherMap)')
     } catch (error) {
       console.error('❌ Error adding weather layer:', error)
       console.warn('⚠️ Weather data may be temporarily unavailable')
     }
-  }, [fetchRadarTimestamp])
+  }, [])
 
   // Handle weather layer toggle
   useEffect(() => {
@@ -391,12 +370,18 @@ export function TruckMap({
     // Re-add load markers
     loadPins.forEach(loadPin => {
       const isSelected = selectedLoad && selectedLoad.id === loadPin.id
-      
+
+      // Reserved loads render as a pink package pin; available loads stay orange.
+      const isReserved = loadPin.reserved
+      const baseColor = isReserved ? '#ec4899' : '#ff9800'
+      const selectedBorder = isReserved ? '#be185d' : '#FF5722'
+      const reservedByLabel = (loadPin.reservedBy || []).join(', ')
+
       const markerElement = document.createElement('div')
       markerElement.className = 'custom-marker load-marker'
       markerElement.innerHTML = `
         <div style="
-          background: #ff9800;
+          background: ${baseColor};
           color: white;
           border-radius: 4px;
           width: 30px;
@@ -406,7 +391,7 @@ export function TruckMap({
           justify-content: center;
           font-weight: bold;
           font-size: 12px;
-          border: 2px solid ${isSelected ? '#FF5722' : 'white'};
+          border: 2px solid ${isSelected ? selectedBorder : 'white'};
           box-shadow: 0 2px 4px rgba(0,0,0,0.3);
           cursor: pointer;
           transition: transform 0.2s;
@@ -415,6 +400,16 @@ export function TruckMap({
           📦
         </div>
       `
+
+      const allReserved = isReserved && loadPin.reservedCount === loadPin.loadCount
+      const reservedHeading = allReserved
+        ? `RESERVED LOAD${loadPin.loadCount > 1 ? 'S' : ''}${reservedByLabel ? ` BY ${reservedByLabel.toUpperCase()}` : ''}`
+        : `${loadPin.reservedCount} OF ${loadPin.loadCount} RESERVED${reservedByLabel ? ` BY ${reservedByLabel.toUpperCase()}` : ''}`
+      const reservedHtml = isReserved
+        ? `<div style="font-size: 12px; color: #be185d; font-weight: bold; margin-top: 4px;">
+             ${reservedHeading}
+           </div>`
+        : ''
 
       const popup = new mapboxgl.Popup({
         offset: 25,
@@ -428,6 +423,7 @@ export function TruckMap({
           <div style="font-size: 12px; color: #666;">
             ${loadPin.loadCount} load${loadPin.loadCount !== 1 ? 's' : ''} available
           </div>
+          ${reservedHtml}
           <div style="font-size: 11px; color: #999; margin-top: 4px;">
             Click for details
           </div>
@@ -438,6 +434,14 @@ export function TruckMap({
         .setLngLat([loadPin.longitude, loadPin.latitude])
         .setPopup(popup)
         .addTo(map.current!)
+
+      // Show the popup (incl. reserved-by) on hover, in addition to click.
+      markerElement.addEventListener('mouseenter', () => {
+        if (!popup.isOpen()) marker.togglePopup()
+      })
+      markerElement.addEventListener('mouseleave', () => {
+        if (popup.isOpen()) marker.togglePopup()
+      })
 
       markerElement.addEventListener('click', () => {
         onPinClick(loadPin)

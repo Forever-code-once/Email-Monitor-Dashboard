@@ -2,10 +2,38 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// 1x1 fully transparent PNG, served when a tile is missing/errored so the map
+// renders nothing instead of a broken/error tile.
+const TRANSPARENT_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64'
+)
+
+function transparentTile() {
+  return new NextResponse(TRANSPARENT_PNG, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=300',
+      'Access-Control-Allow-Origin': '*',
+    },
+  })
+}
+
+// OpenWeatherMap raster layers we allow proxying (prevents arbitrary URL
+// injection into the upstream tile path). All render at every zoom level.
+const ALLOWED_OWM_LAYERS = new Set([
+  'precipitation_new',
+  'clouds_new',
+  'temp_new',
+  'wind_new',
+  'pressure_new',
+])
+
 /**
- * Proxy for weather radar tiles
- * Uses RainViewer for precipitation radar (real-time)
- * Uses OpenWeatherMap for clouds and temperature
+ * Proxy for OpenWeatherMap weather raster tiles (precipitation, clouds, etc.).
+ * Keeps the API key server-side. Unlike RainViewer, OWM serves tiles at all
+ * zoom levels, so there is no "Zoom Level Not Supported" placeholder.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -13,46 +41,32 @@ export async function GET(request: NextRequest) {
     const z = searchParams.get('z')
     const x = searchParams.get('x')
     const y = searchParams.get('y')
-    const layer = searchParams.get('layer') || 'precipitation'
-    const timestamp = searchParams.get('timestamp')
+    // Default to precipitation; accept legacy "precipitation" alias.
+    let layer = searchParams.get('layer') || 'precipitation_new'
+    if (layer === 'precipitation') layer = 'precipitation_new'
 
     if (!z || !x || !y) {
-      return NextResponse.json({ 
-        error: 'Missing required parameters: z, x, y' 
+      return NextResponse.json({
+        error: 'Missing required parameters: z, x, y',
       }, { status: 400 })
     }
 
-    let tileUrl: string
-
-    // Use RainViewer for precipitation (real-time radar)
-    if (layer === 'precipitation' || layer === 'precipitation_new') {
-      if (!timestamp) {
-        return NextResponse.json({ 
-          error: 'Missing timestamp for precipitation layer' 
-        }, { status: 400 })
-      }
-      
-      // RainViewer radar tiles - color = 1 (standard), smooth = 1 (smooth), snow = 1 (show snow)
-      tileUrl = `https://tilecache.rainviewer.com/v2/radar/${timestamp}/256/${z}/${x}/${y}/1/1_1.png`
-      
-      console.log(`🌦️ Fetching RainViewer radar tile: ${z}/${x}/${y} @ ${timestamp}`)
-    } else {
-      // Use OpenWeatherMap for clouds and temperature
-      const apiKey = process.env.OPENWEATHERMAP_API_KEY
-
-      if (!apiKey) {
-        console.error('❌ OpenWeatherMap API key not configured')
-        return NextResponse.json({ 
-          error: 'Weather service not configured' 
-        }, { status: 500 })
-      }
-
-      tileUrl = `https://tile.openweathermap.org/map/${layer}/${z}/${x}/${y}.png?appid=${apiKey}`
-      
-      console.log(`🌦️ Fetching OpenWeatherMap tile: ${layer} at ${z}/${x}/${y}`)
+    if (!ALLOWED_OWM_LAYERS.has(layer)) {
+      return NextResponse.json({
+        error: `Unsupported weather layer: ${layer}`,
+      }, { status: 400 })
     }
 
-    // Fetch the tile
+    const apiKey = process.env.OPENWEATHERMAP_API_KEY
+    if (!apiKey) {
+      console.error('❌ OpenWeatherMap API key not configured')
+      return NextResponse.json({
+        error: 'Weather service not configured',
+      }, { status: 500 })
+    }
+
+    const tileUrl = `https://tile.openweathermap.org/map/${layer}/${z}/${x}/${y}.png?appid=${apiKey}`
+
     const response = await fetch(tileUrl, {
       headers: {
         'User-Agent': 'Email-Monitor-Dashboard/1.0',
@@ -62,37 +76,23 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       console.error(`❌ Weather tile fetch failed: ${response.status} ${response.statusText}`)
-      
-      if (response.status === 401) {
-        return NextResponse.json({ 
-          error: 'Invalid API key' 
-        }, { status: 401 })
-      }
-      
-      return NextResponse.json({ 
-        error: `Failed to fetch weather tile: ${response.status}` 
-      }, { status: response.status })
+      // Missing/errored tile -> transparent so the map shows nothing.
+      return transparentTile()
     }
 
-    // Get the image data
     const imageData = await response.arrayBuffer()
 
-    // Return the image with proper headers
     return new NextResponse(imageData, {
       status: 200,
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
-        'Access-Control-Allow-Origin': '*', // Allow CORS
+        'Access-Control-Allow-Origin': '*',
       },
     })
-
   } catch (error) {
     console.error('❌ Weather proxy error:', error)
-    return NextResponse.json({ 
-      error: 'Failed to fetch weather tile',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    // Never surface an error tile to the map.
+    return transparentTile()
   }
 }
-

@@ -25,6 +25,29 @@ export interface LoadPin extends MapPin {
   loads: LoadData[]
   loadCount: number
   date: string
+  /** True when every load at this location is reserved (RESERVED = 'Y'). */
+  reserved: boolean
+  /** Number of reserved loads in this group. */
+  reservedCount: number
+  /** Distinct names (or initials) of the users who reserved loads here. */
+  reservedBy: string[]
+}
+
+/**
+ * Whether a single load is reserved. Mirrors VLP `avalload.RESERVED` where
+ * 'Y' (truthy) means the load is reserved/held by a dispatcher.
+ */
+export function isLoadReserved(load: LoadData): boolean {
+  const v = (load.reserved ?? load.RESERVED ?? '').toString().trim().toUpperCase()
+  return v === 'Y' || v === 'YES' || v === '1' || v === 'T' || v === 'TRUE'
+}
+
+/**
+ * The user who reserved a load: full name from SIGNON if available,
+ * otherwise the dispatcher initials.
+ */
+export function reservedByName(load: LoadData): string {
+  return (load.reserved_by || load.reserved_by_initials || load.dispatcher_initials || '').trim()
 }
 
 /**
@@ -125,7 +148,16 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
       
       // Get the most common date from loads (or use first load's date)
       const date = firstLoad.pu_drop_date1 || 'TBD'
-      
+
+      // Reservation status: the pin goes pink when ANY load at this location is
+      // reserved, so a reserved load is never hidden behind unreserved ones at
+      // the same city. The detail modal then shows which specific loads are
+      // reserved vs available.
+      const reservedLoads = locationLoads.filter(isLoadReserved)
+      const reservedBy = Array.from(
+        new Set(reservedLoads.map(reservedByName).filter(Boolean))
+      )
+
       const pin: LoadPin = {
         id: `load-${city}-${state}`,
         type: 'load',
@@ -136,6 +168,9 @@ export async function convertLoadsToPins(loads: LoadData[]): Promise<LoadPin[]> 
         loads: locationLoads,
         loadCount: locationLoads.length,
         date: date,
+        reserved: reservedLoads.length > 0,
+        reservedCount: reservedLoads.length,
+        reservedBy: reservedBy,
         title: `${displayCity}, ${state} - ${locationLoads.length} load${locationLoads.length !== 1 ? 's' : ''}`,
         data: firstLoad // Keep first load as primary data for compatibility
       }
